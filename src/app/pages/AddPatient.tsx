@@ -1,197 +1,168 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ChevronRight, AlertCircle, Upload } from "lucide-react";
-import { Input } from "../components/form/Input";
-import { Select } from "../components/form/Select";
-import { Textarea } from "../components/form/Textarea";
-import { Checkbox } from "../components/form/Checkbox";
-import { Toggle } from "../components/form/Toggle";
-import { MultiSelect } from "../components/form/MultiSelect";
-import { SectionCard } from "../components/form/SectionCard";
+import { ChevronRight } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../context/AuthContext";
+import { BasicInfoSection } from "../components/patient/BasicInfoSection";
+import { MedicalInfoSection } from "../components/patient/MedicalInfoSection";
+import { DentalInfoSection } from "../components/patient/DentalInfoSection";
+import { InsuranceBillingSection } from "../components/patient/InsuranceBillingSection";
+import { CommunicationPreferencesSection } from "../components/patient/CommunicationPreferencesSection";
+import type { PatientFormData, FormValue, FormErrors } from "../components/patient/types";
 
-interface FormData {
-  // Basic Information
-  firstName: string;
-  lastName: string;
-  gender: string;
-  dateOfBirth: string;
-  age: string;
-  phone: string;
-  alternatePhone: string;
-  email: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
+const initialFormData: PatientFormData = {
+  firstName: "",
+  lastName: "",
+  gender: "",
+  dateOfBirth: "",
+  age: "",
+  phone: "",
+  alternatePhone: "",
+  email: "",
+  address: "",
+  city: "",
+  state: "",
+  zipCode: "",
+  bloodGroup: "",
+  allergies: [],
+  medicalConditions: "",
+  currentMedications: "",
+  pregnancyStatus: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  referringDoctor: "",
+  firstVisitDate: new Date().toISOString().split("T")[0],
+  chiefComplaint: "",
+  previousDentist: "",
+  lastDentalVisit: "",
+  treatmentNotes: "",
+  insuranceProvider: "",
+  policyNumber: "",
+  coveragePercentage: "",
+  billingNotes: "",
+  paymentMethod: "",
+  smsReminders: true,
+  emailReminders: true,
+  whatsappNotifications: true,
+  activePatient: true,
+};
 
-  // Medical Information
-  bloodGroup: string;
-  allergies: string[];
-  medicalConditions: string;
-  currentMedications: string;
-  pregnancyStatus: string;
-  emergencyContactName: string;
-  emergencyContactPhone: string;
-
-  // Dental Information
-  referringDoctor: string;
-  firstVisitDate: string;
-  chiefComplaint: string;
-  previousDentist: string;
-  lastDentalVisit: string;
-  treatmentNotes: string;
-
-  // Insurance & Billing
-  insuranceProvider: string;
-  policyNumber: string;
-  coveragePercentage: string;
-  billingNotes: string;
-  paymentMethod: string;
-
-  // Communication Preferences
-  smsReminders: boolean;
-  emailReminders: boolean;
-  whatsappNotifications: boolean;
-  activePatient: boolean;
+function calculateAge(dob: string): string {
+  if (!dob) return "";
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age.toString();
 }
-
-const allergySuggestions = [
-  "Penicillin",
-  "Latex",
-  "Lidocaine",
-  "Epinephrine",
-  "Aspirin",
-  "Ibuprofen",
-  "Codeine",
-  "Sulfa drugs",
-];
 
 export function AddPatient() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showToast, setShowToast] = useState(false);
-  const [formData, setFormData] = useState<FormData>({
-    firstName: "",
-    lastName: "",
-    gender: "",
-    dateOfBirth: "",
-    age: "",
-    phone: "",
-    alternatePhone: "",
-    email: "",
-    address: "",
-    city: "",
-    state: "",
-    zipCode: "",
-    bloodGroup: "",
-    allergies: [],
-    medicalConditions: "",
-    currentMedications: "",
-    pregnancyStatus: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
-    referringDoctor: "",
-    firstVisitDate: new Date().toISOString().split("T")[0],
-    chiefComplaint: "",
-    previousDentist: "",
-    lastDentalVisit: "",
-    treatmentNotes: "",
-    insuranceProvider: "",
-    policyNumber: "",
-    coveragePercentage: "",
-    billingNotes: "",
-    paymentMethod: "",
-    smsReminders: true,
-    emailReminders: true,
-    whatsappNotifications: true,
-    activePatient: true,
-  });
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [formData, setFormData] = useState<PatientFormData>(initialFormData);
+  const [errors, setErrors] = useState<FormErrors>({});
 
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-
-  // Calculate age from date of birth
-  const calculateAge = (dob: string) => {
-    if (!dob) return "";
-    const birthDate = new Date(dob);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age.toString();
-  };
-
-  const handleInputChange = (field: keyof FormData, value: any) => {
+  const handleInputChange = (field: keyof PatientFormData, value: FormValue) => {
     setFormData((prev) => {
       const updated = { ...prev, [field]: value };
-      
-      // Auto-calculate age when DOB changes
-      if (field === "dateOfBirth") {
+      if (field === "dateOfBirth" && typeof value === "string") {
         updated.age = calculateAge(value);
       }
-      
       return updated;
     });
-    
-    // Clear error for this field
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof FormData, string>> = {};
-
-    // Required field validation
+    const newErrors: FormErrors = {};
     if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
     if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
     if (!formData.gender) newErrors.gender = "Gender is required";
     if (!formData.dateOfBirth) newErrors.dateOfBirth = "Date of birth is required";
     if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
-
-    // Phone validation
     if (formData.phone && !/^\+91\s\d{5}-\d{5}$/.test(formData.phone)) {
       newErrors.phone = "Please enter valid phone format: +91 98765-43210";
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSave = () => {
-    if (validateForm()) {
-      console.log("Saving patient:", formData);
-      setShowToast(true);
-      setTimeout(() => {
-        setShowToast(false);
-        navigate("/patients");
-      }, 2000);
-    }
-  };
+  const saveAndNavigate = async (destination: string) => {
+    if (!validateForm()) return;
+    setSaveError(null);
 
-  const handleSaveAndAddAppointment = () => {
-    if (validateForm()) {
-      console.log("Saving patient and adding appointment:", formData);
-      setShowToast(true);
-      setTimeout(() => {
-        setShowToast(false);
-        navigate("/calendar");
-      }, 2000);
+    // Enum fields must be null when empty (Supabase rejects empty strings for enums)
+    const { error } = await supabase.from("patients").insert({
+      created_by: user?.id ?? null,
+      first_name: formData.firstName,
+      last_name: formData.lastName,
+      gender: formData.gender || null,
+      date_of_birth: formData.dateOfBirth || null,
+      phone: formData.phone,
+      alternate_phone: formData.alternatePhone || null,
+      email: formData.email || null,
+      address: formData.address || null,
+      city: formData.city || null,
+      state: formData.state || null,
+      zip_code: formData.zipCode || null,
+      blood_group: formData.bloodGroup || null,
+      allergies: formData.allergies,
+      medical_conditions: formData.medicalConditions || null,
+      current_medications: formData.currentMedications || null,
+      pregnancy_status: formData.pregnancyStatus || null,
+      emergency_contact_name: formData.emergencyContactName || null,
+      emergency_contact_phone: formData.emergencyContactPhone || null,
+      referring_doctor: formData.referringDoctor || null,
+      first_visit_date: formData.firstVisitDate || null,
+      chief_complaint: formData.chiefComplaint || null,
+      previous_dentist: formData.previousDentist || null,
+      last_dental_visit: formData.lastDentalVisit || null,
+      treatment_notes: formData.treatmentNotes || null,
+      insurance_provider: formData.insuranceProvider || null,
+      policy_number: formData.policyNumber || null,
+      coverage_percentage: formData.coveragePercentage ? parseFloat(formData.coveragePercentage) : null,
+      billing_notes: formData.billingNotes || null,
+      payment_method: formData.paymentMethod || null,
+      sms_reminders: formData.smsReminders,
+      email_reminders: formData.emailReminders,
+      whatsapp_notifications: formData.whatsappNotifications,
+      is_active: formData.activePatient,
+    });
+
+    if (error) {
+      setSaveError(error.message);
+      return;
     }
+
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+      navigate(destination);
+    }, 2000);
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Toast Notification */}
       {showToast && (
         <div className="fixed top-4 right-4 z-50 rounded-xl bg-green-600 px-6 py-3 text-white shadow-lg animate-in slide-in-from-top">
           ✓ Patient successfully added
         </div>
       )}
+      {saveError && (
+        <div className="fixed top-4 right-4 z-50 rounded-xl bg-destructive px-6 py-3 text-white shadow-lg">
+          Error: {saveError}
+        </div>
+      )}
 
       <div className="p-8">
         <div className="mx-auto max-w-5xl">
-          {/* Header */}
           <div className="mb-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
               <button onClick={() => navigate("/patients")} className="hover:text-foreground transition-colors">
@@ -210,7 +181,7 @@ export function AddPatient() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleSave}
+                  onClick={() => saveAndNavigate("/patients")}
                   className="rounded-xl bg-primary px-6 py-2.5 text-sm text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
                   Save Patient
@@ -220,323 +191,13 @@ export function AddPatient() {
           </div>
 
           <div className="space-y-6">
-            {/* Basic Information */}
-            <SectionCard title="Basic Information">
-              <div className="grid grid-cols-2 gap-6">
-                <Input
-                  label="First Name"
-                  required
-                  value={formData.firstName}
-                  onChange={(e) => handleInputChange("firstName", e.target.value)}
-                  error={errors.firstName}
-                  placeholder="Enter first name"
-                />
-                <Input
-                  label="Last Name"
-                  required
-                  value={formData.lastName}
-                  onChange={(e) => handleInputChange("lastName", e.target.value)}
-                  error={errors.lastName}
-                  placeholder="Enter last name"
-                />
-                <Select
-                  label="Gender"
-                  required
-                  value={formData.gender}
-                  onChange={(e) => handleInputChange("gender", e.target.value)}
-                  error={errors.gender}
-                  options={[
-                    { value: "", label: "Select gender" },
-                    { value: "male", label: "Male" },
-                    { value: "female", label: "Female" },
-                    { value: "other", label: "Other" },
-                  ]}
-                />
-                <Input
-                  label="Date of Birth"
-                  required
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
-                  error={errors.dateOfBirth}
-                />
-                <Input
-                  label="Age"
-                  value={formData.age}
-                  disabled
-                  placeholder="Auto-calculated"
-                />
-                <Input
-                  label="Phone Number"
-                  required
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                  error={errors.phone}
-                  placeholder="+91 98765-43210"
-                />
-                <Input
-                  label="Alternate Phone"
-                  value={formData.alternatePhone}
-                  onChange={(e) => handleInputChange("alternatePhone", e.target.value)}
-                  placeholder="+91 98765-43210"
-                />
-                <Input
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  placeholder="patient@example.com"
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-6 mt-6">
-                <Textarea
-                  label="Address"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                  placeholder="Street address, apartment, etc."
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-6 mt-6">
-                <Input
-                  label="City"
-                  value={formData.city}
-                  onChange={(e) => handleInputChange("city", e.target.value)}
-                  placeholder="City"
-                />
-                <Input
-                  label="State"
-                  value={formData.state}
-                  onChange={(e) => handleInputChange("state", e.target.value)}
-                  placeholder="State"
-                />
-                <Input
-                  label="ZIP Code"
-                  value={formData.zipCode}
-                  onChange={(e) => handleInputChange("zipCode", e.target.value)}
-                  placeholder="360001"
-                />
-              </div>
-            </SectionCard>
-
-            {/* Medical Information */}
-            <SectionCard title="Medical Information">
-              <div className="grid grid-cols-2 gap-6">
-                <Select
-                  label="Blood Group"
-                  value={formData.bloodGroup}
-                  onChange={(e) => handleInputChange("bloodGroup", e.target.value)}
-                  options={[
-                    { value: "", label: "Select blood group" },
-                    { value: "A+", label: "A+" },
-                    { value: "A-", label: "A-" },
-                    { value: "B+", label: "B+" },
-                    { value: "B-", label: "B-" },
-                    { value: "AB+", label: "AB+" },
-                    { value: "AB-", label: "AB-" },
-                    { value: "O+", label: "O+" },
-                    { value: "O-", label: "O-" },
-                  ]}
-                />
-                <div className="col-span-2">
-                  <MultiSelect
-                    label="Allergies"
-                    value={formData.allergies}
-                    onChange={(value) => handleInputChange("allergies", value)}
-                    suggestions={allergySuggestions}
-                    placeholder="Type allergy and press Enter"
-                  />
-                  {formData.allergies.length > 0 && (
-                    <div className="mt-3 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-2.5">
-                      <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
-                      <span className="text-sm text-red-800 font-medium">
-                        Medical Alert: Patient has {formData.allergies.length} known{" "}
-                        {formData.allergies.length === 1 ? "allergy" : "allergies"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-6 mt-6">
-                <Textarea
-                  label="Existing Medical Conditions"
-                  value={formData.medicalConditions}
-                  onChange={(e) => handleInputChange("medicalConditions", e.target.value)}
-                  placeholder="List any existing medical conditions (diabetes, hypertension, etc.)"
-                />
-                <Textarea
-                  label="Current Medications"
-                  value={formData.currentMedications}
-                  onChange={(e) => handleInputChange("currentMedications", e.target.value)}
-                  placeholder="List current medications with dosage"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-6 mt-6">
-                {formData.gender === "female" && (
-                  <Select
-                    label="Pregnancy Status"
-                    value={formData.pregnancyStatus}
-                    onChange={(e) => handleInputChange("pregnancyStatus", e.target.value)}
-                    options={[
-                      { value: "", label: "Select status" },
-                      { value: "not_pregnant", label: "Not Pregnant" },
-                      { value: "pregnant", label: "Pregnant" },
-                      { value: "not_applicable", label: "Not Applicable" },
-                    ]}
-                  />
-                )}
-                <Input
-                  label="Emergency Contact Name"
-                  value={formData.emergencyContactName}
-                  onChange={(e) => handleInputChange("emergencyContactName", e.target.value)}
-                  placeholder="Full name"
-                />
-                <Input
-                  label="Emergency Contact Phone"
-                  value={formData.emergencyContactPhone}
-                  onChange={(e) => handleInputChange("emergencyContactPhone", e.target.value)}
-                  placeholder="+91 98765-43210"
-                />
-              </div>
-            </SectionCard>
-
-            {/* Dental Information */}
-            <SectionCard title="Dental Information">
-              <div className="grid grid-cols-2 gap-6">
-                <Input
-                  label="Referring Doctor"
-                  value={formData.referringDoctor}
-                  onChange={(e) => handleInputChange("referringDoctor", e.target.value)}
-                  placeholder="Dr. Name"
-                />
-                <Input
-                  label="First Visit Date"
-                  type="date"
-                  value={formData.firstVisitDate}
-                  onChange={(e) => handleInputChange("firstVisitDate", e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-6 mt-6">
-                <Textarea
-                  label="Chief Complaint"
-                  value={formData.chiefComplaint}
-                  onChange={(e) => handleInputChange("chiefComplaint", e.target.value)}
-                  placeholder="What is the main reason for the visit?"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-6 mt-6">
-                <Input
-                  label="Previous Dentist"
-                  value={formData.previousDentist}
-                  onChange={(e) => handleInputChange("previousDentist", e.target.value)}
-                  placeholder="Name of previous dentist"
-                />
-                <Input
-                  label="Last Dental Visit Date"
-                  type="date"
-                  value={formData.lastDentalVisit}
-                  onChange={(e) => handleInputChange("lastDentalVisit", e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-6 mt-6">
-                <Textarea
-                  label="Treatment Notes"
-                  value={formData.treatmentNotes}
-                  onChange={(e) => handleInputChange("treatmentNotes", e.target.value)}
-                  placeholder="Any relevant treatment notes or history"
-                />
-              </div>
-              <div className="mt-6">
-                <button className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm hover:bg-secondary transition-colors">
-                  <Upload className="h-4 w-4" />
-                  Upload Previous X-rays
-                </button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Accepted formats: JPEG, PNG, PDF (Max 10MB)
-                </p>
-              </div>
-            </SectionCard>
-
-            {/* Insurance & Billing */}
-            <SectionCard title="Insurance & Billing">
-              <div className="grid grid-cols-2 gap-6">
-                <Input
-                  label="Insurance Provider"
-                  value={formData.insuranceProvider}
-                  onChange={(e) => handleInputChange("insuranceProvider", e.target.value)}
-                  placeholder="Provider name"
-                />
-                <Input
-                  label="Policy Number"
-                  value={formData.policyNumber}
-                  onChange={(e) => handleInputChange("policyNumber", e.target.value)}
-                  placeholder="Policy number"
-                />
-                <Input
-                  label="Coverage %"
-                  type="number"
-                  value={formData.coveragePercentage}
-                  onChange={(e) => handleInputChange("coveragePercentage", e.target.value)}
-                  placeholder="80"
-                  min="0"
-                  max="100"
-                />
-                <Select
-                  label="Preferred Payment Method"
-                  value={formData.paymentMethod}
-                  onChange={(e) => handleInputChange("paymentMethod", e.target.value)}
-                  options={[
-                    { value: "", label: "Select method" },
-                    { value: "cash", label: "Cash" },
-                    { value: "card", label: "Card" },
-                    { value: "upi", label: "UPI" },
-                    { value: "netbanking", label: "Net Banking" },
-                    { value: "insurance", label: "Insurance" },
-                  ]}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-6 mt-6">
-                <Textarea
-                  label="Billing Notes"
-                  value={formData.billingNotes}
-                  onChange={(e) => handleInputChange("billingNotes", e.target.value)}
-                  placeholder="Any special billing instructions or notes"
-                />
-              </div>
-            </SectionCard>
-
-            {/* Communication Preferences */}
-            <SectionCard title="Communication Preferences">
-              <div className="space-y-4">
-                <Checkbox
-                  label="SMS Reminders"
-                  checked={formData.smsReminders}
-                  onChange={(e) => handleInputChange("smsReminders", e.target.checked)}
-                />
-                <Checkbox
-                  label="Email Reminders"
-                  checked={formData.emailReminders}
-                  onChange={(e) => handleInputChange("emailReminders", e.target.checked)}
-                />
-                <Checkbox
-                  label="WhatsApp Notifications"
-                  checked={formData.whatsappNotifications}
-                  onChange={(e) => handleInputChange("whatsappNotifications", e.target.checked)}
-                />
-              </div>
-              <div className="mt-6 pt-6 border-t border-border">
-                <Toggle
-                  label="Active Patient"
-                  checked={formData.activePatient}
-                  onChange={(checked) => handleInputChange("activePatient", checked)}
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Inactive patients won't appear in appointment scheduling
-                </p>
-              </div>
-            </SectionCard>
+            <BasicInfoSection formData={formData} errors={errors} onChange={handleInputChange} />
+            <MedicalInfoSection formData={formData} onChange={handleInputChange} />
+            <DentalInfoSection formData={formData} onChange={handleInputChange} />
+            <InsuranceBillingSection formData={formData} onChange={handleInputChange} />
+            <CommunicationPreferencesSection formData={formData} onChange={handleInputChange} />
           </div>
 
-          {/* Sticky Footer */}
           <div className="sticky bottom-0 mt-8 border-t border-border bg-card/95 backdrop-blur-sm py-4 -mx-8 px-8">
             <div className="mx-auto max-w-5xl flex items-center justify-between">
               <button
@@ -547,13 +208,13 @@ export function AddPatient() {
               </button>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={handleSaveAndAddAppointment}
+                  onClick={() => saveAndNavigate("/calendar")}
                   className="rounded-xl border border-border bg-card px-6 py-2.5 text-sm hover:bg-secondary transition-colors"
                 >
                   Save & Add Appointment
                 </button>
                 <button
-                  onClick={handleSave}
+                  onClick={() => saveAndNavigate("/patients")}
                   className="rounded-xl bg-primary px-6 py-2.5 text-sm text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
                   Save Patient

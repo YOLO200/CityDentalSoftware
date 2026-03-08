@@ -11,9 +11,8 @@ import {
   LogOut,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
 import { LogoutModal } from "./LogoutModal";
-import logo from "figma:asset/57c840372f4a688bd44489df61e972b8c9087443.png";
+import { useAuth } from "../context/AuthContext";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -27,13 +26,15 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
-  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   return (
     <div className="flex flex-col w-20 border-r border-border bg-card">
       <div className="flex h-16 items-center justify-center border-b border-border px-2">
-        <img src={logo} alt="City Dental Software" className="h-10 w-10 object-contain" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground text-xs font-bold">
+          CD
+        </div>
       </div>
       <nav className="flex-1 space-y-1 px-1 py-4">
         {navigation.map((item) => {
@@ -91,10 +92,7 @@ export function Sidebar() {
         onClose={() => setShowLogoutModal(false)}
         onConfirm={() => {
           setShowLogoutModal(false);
-          // Add fade out effect before navigation
-          setTimeout(() => {
-            navigate("/login");
-          }, 200);
+          logout();
         }}
       />
     </div>

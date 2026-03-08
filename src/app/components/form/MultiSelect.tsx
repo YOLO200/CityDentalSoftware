@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface MultiSelectProps {
   label?: string;
@@ -20,6 +20,15 @@ export function MultiSelect({
 }: MultiSelectProps) {
   const [inputValue, setInputValue] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current !== null) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && inputValue.trim()) {
@@ -57,7 +66,7 @@ export function MultiSelect({
         </label>
       )}
       <div className="relative">
-        <div className="min-h-[44px] rounded-xl border border-border bg-input-background px-3 py-2 flex flex-wrap gap-2 items-center focus-within:ring-2 focus-within:ring-ring">
+        <div className="min-h-11 rounded-xl border border-border bg-input-background px-3 py-2 flex flex-wrap gap-2 items-center focus-within:ring-2 focus-within:ring-ring">
           {value.map((tag) => (
             <span
               key={tag}
@@ -82,7 +91,9 @@ export function MultiSelect({
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => setShowSuggestions(inputValue.length > 0)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            onBlur={() => {
+              blurTimeoutRef.current = setTimeout(() => setShowSuggestions(false), 200);
+            }}
             placeholder={value.length === 0 ? placeholder : ""}
             className="flex-1 min-w-[120px] bg-transparent text-sm outline-none"
           />
