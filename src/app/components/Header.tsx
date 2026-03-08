@@ -1,13 +1,33 @@
-import { Search, Bell, User, MapPin, ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { Bell, User, MapPin, ChevronDown } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../../lib/supabase";
 
 const branches = ["Speedwell", "Virani Chowk", "Kothariya"];
 
 export function Header() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedBranch, setSelectedBranch] = useState("Speedwell");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileRole, setProfileRole] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("name, role")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setProfileName((data.name as string) || user.name || "");
+          setProfileRole((data.role as string) || "");
+        }
+      });
+  }, [user]);
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
@@ -74,8 +94,8 @@ export function Header() {
           className="flex items-center gap-3 hover:opacity-80 transition-opacity"
         >
           <div className="text-right">
-            <p className="text-sm">Dr. Anand Jasani</p>
-            <p className="text-xs text-muted-foreground">Doctor</p>
+            <p className="text-sm">{profileName || "—"}</p>
+            <p className="text-xs text-muted-foreground">{profileRole || "—"}</p>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <User className="h-5 w-5" />
