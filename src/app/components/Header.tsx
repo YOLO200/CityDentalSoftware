@@ -3,13 +3,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-
-const branches = ["Speedwell", "Virani Chowk", "Kothariya"];
+import { useBranch, branches } from "../context/BranchContext";
 
 export function Header() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [selectedBranch, setSelectedBranch] = useState("Speedwell");
+  const { selectedBranch, setSelectedBranch } = useBranch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileRole, setProfileRole] = useState("");

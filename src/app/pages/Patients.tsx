@@ -156,7 +156,8 @@ export function Patients() {
                 {filteredPatients.map((patient) => (
                   <tr
                     key={patient.id}
-                    className="border-b border-border hover:bg-blue-50/50 transition-colors"
+                    onClick={() => navigate(`/patients/${patient.id}`)}
+                    className="border-b border-border hover:bg-blue-50/50 transition-colors cursor-pointer"
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -203,7 +204,7 @@ export function Patients() {
                         {patient.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => navigate(`/patients/${patient.id}`)}

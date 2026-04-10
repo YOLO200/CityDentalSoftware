@@ -12,6 +12,7 @@ import { Login } from "./pages/Login";
 import { SignUp } from "./pages/SignUp";
 import { SetupProfile } from "./pages/SetupProfile";
 import { ComingSoon } from "./pages/ComingSoon";
+import { PatientDetail } from "./pages/PatientDetail";
 
 export const router = createBrowserRouter([
   {
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
               { path: "/", Component: Dashboard },
               { path: "/patients", Component: Patients },
               { path: "/patients/add", Component: AddPatient },
+              { path: "/patients/:id", Component: PatientDetail },
               { path: "/calendar", Component: Calendar },
               { path: "/profile", Component: Profile },
               { path: "/reports", Component: ComingSoon },
