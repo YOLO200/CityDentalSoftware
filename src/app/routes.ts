@@ -13,6 +13,8 @@ import { SignUp } from "./pages/SignUp";
 import { SetupProfile } from "./pages/SetupProfile";
 import { ComingSoon } from "./pages/ComingSoon";
 import { PatientDetail } from "./pages/PatientDetail";
+import { Reports } from "./pages/Reports";
+import { Admin } from "./pages/Admin";
 
 export const router = createBrowserRouter([
   {
@@ -42,8 +44,8 @@ export const router = createBrowserRouter([
               { path: "/patients/:id", Component: PatientDetail },
               { path: "/calendar", Component: Calendar },
               { path: "/profile", Component: Profile },
-              { path: "/reports", Component: ComingSoon },
-              { path: "/admin", Component: ComingSoon },
+              { path: "/reports", Component: Reports },
+              { path: "/admin", Component: Admin },
               { path: "/crm", Component: ComingSoon },
               { path: "/help", Component: ComingSoon },
               { path: "/settings", Component: ComingSoon },

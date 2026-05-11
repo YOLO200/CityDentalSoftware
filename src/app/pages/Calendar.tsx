@@ -1,5 +1,287 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Search, X, UserPlus, ChevronDown as CDown } from "lucide-react";
+
+// ── Floating-label primitives (local) ────────────────────────────────────────
+
+function FInput({ label, required, className = "", ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string; required?: boolean }) {
+  return (
+    <div className={`relative border border-gray-300 rounded-lg bg-white focus-within:border-indigo-400 transition-colors ${className}`}>
+      {label && (
+        <span className="absolute left-3 top-1.5 text-[10px] leading-none text-gray-500 pointer-events-none">
+          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        </span>
+      )}
+      <input className={`w-full ${label ? "pt-5 pb-1.5" : "py-2.5"} px-3 text-sm outline-none bg-transparent`} {...props} />
+    </div>
+  );
+}
+
+function FSelect({ label, required, options, className = "", ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string; required?: boolean; options: { value: string; label: string }[] }) {
+  return (
+    <div className={`relative border border-gray-300 rounded-lg bg-white focus-within:border-indigo-400 transition-colors ${className}`}>
+      {label && (
+        <span className="absolute left-3 top-1.5 text-[10px] leading-none text-gray-500 pointer-events-none z-10">
+          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        </span>
+      )}
+      <select className={`w-full appearance-none ${label ? "pt-5 pb-1.5" : "py-2.5"} px-3 pr-8 text-sm outline-none bg-transparent`} {...props}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <CDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+    </div>
+  );
+}
+
+// ── Appointment Modal ─────────────────────────────────────────────────────────
+
+type TopTab = "appointment" | "task" | "unavailable";
+type ApptSubTab = "single" | "series" | "group";
+
+function AppointmentModal({ onClose }: { onClose: () => void }) {
+  const [topTab, setTopTab] = useState<TopTab>("appointment");
+  const [subTab, setSubTab] = useState<ApptSubTab>("single");
+  const [center, setCenter] = useState("Virani chowk");
+  const [operatory, setOperatory] = useState("");
+  const [doctor, setDoctor] = useState("Dr. Anand Jasani");
+  const [patient, setPatient] = useState("");
+  const [treatmentCategory, setTreatmentCategory] = useState("Not Specified");
+  const [treatment, setTreatment] = useState("");
+  const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(() => {
+    const d = new Date();
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, " ");
+  });
+  const [time, setTime] = useState(() => {
+    const d = new Date();
+    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  });
+  const [duration, setDuration] = useState("1 hour");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+
+        {/* Header tabs */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-gray-200">
+          <div className="flex gap-6">
+            {([
+              { id: "appointment", label: "Appointment" },
+              { id: "task", label: "Task" },
+              { id: "unavailable", label: "Doctor Unavailable" },
+            ] as { id: TopTab; label: string }[]).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTopTab(t.id)}
+                className={`pb-3 text-sm font-medium transition-colors ${
+                  topTab === t.id
+                    ? "border-b-2 border-[#1e2d5a] text-[#1e2d5a]"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={onClose} className="text-red-400 hover:text-red-600 mb-3">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Sub-tabs (only for Appointment) */}
+        {topTab === "appointment" && (
+          <div className="flex gap-0 border-b border-gray-200 px-6">
+            {([
+              { id: "single", label: "Single Appointment" },
+              { id: "series", label: "Appointment Series" },
+              { id: "group", label: "Group Appointment" },
+            ] as { id: ApptSubTab; label: string }[]).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setSubTab(t.id)}
+                className={`py-3 px-4 text-sm transition-colors ${
+                  subTab === t.id
+                    ? "border-b-2 border-[#1e2d5a] text-[#1e2d5a] font-semibold"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+
+          {/* Where */}
+          <div className="flex gap-6 items-start">
+            <div className="w-24 flex-shrink-0 pt-3 text-sm font-medium text-gray-700">Where</div>
+            <div className="flex-1 grid grid-cols-2 gap-3">
+              <FSelect
+                label="Center" required
+                value={center} onChange={e => setCenter(e.target.value)}
+                options={[
+                  { value: "Virani chowk", label: "Virani chowk" },
+                  { value: "Speedwell", label: "Speedwell" },
+                  { value: "Kothariya", label: "Kothariya" },
+                ]}
+              />
+              <FSelect
+                label="Operatory"
+                value={operatory} onChange={e => setOperatory(e.target.value)}
+                options={[
+                  { value: "", label: "Select Operatory" },
+                  { value: "op1", label: "Operatory 1" },
+                  { value: "op2", label: "Operatory 2" },
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* Who */}
+          <div className="flex gap-6 items-start">
+            <div className="w-24 flex-shrink-0 pt-3 text-sm font-medium text-gray-700">Who</div>
+            <div className="flex-1 space-y-3">
+              <FSelect
+                label="Doctor" required
+                value={doctor} onChange={e => setDoctor(e.target.value)}
+                options={doctors.map(d => ({ value: d.name, label: `${d.name} - City Dental Hospital` }))}
+              />
+              <div className="flex gap-2">
+                <FInput
+                  label="Patient" required
+                  className="flex-1"
+                  placeholder="Search by patient id or name or mobile"
+                  value={patient} onChange={e => setPatient(e.target.value)}
+                />
+                <button className="flex items-center gap-1.5 border border-gray-300 rounded-lg px-3 text-sm text-gray-600 hover:bg-gray-50 flex-shrink-0 whitespace-nowrap">
+                  <UserPlus className="h-4 w-4" />
+                  New
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Purpose */}
+          <div className="flex gap-6 items-start">
+            <div className="w-24 flex-shrink-0 pt-3 text-sm font-medium text-gray-700">Purpose</div>
+            <div className="flex-1 space-y-3">
+              <FSelect
+                label="Treatment Category" required
+                value={treatmentCategory} onChange={e => setTreatmentCategory(e.target.value)}
+                options={[
+                  { value: "Not Specified", label: "Not Specified" },
+                  { value: "Preventive", label: "Preventive" },
+                  { value: "Restorative", label: "Restorative" },
+                  { value: "Orthodontics", label: "Orthodontics" },
+                  { value: "Oral Surgery", label: "Oral Surgery" },
+                ]}
+              />
+              <FSelect
+                label="Treatment"
+                value={treatment} onChange={e => setTreatment(e.target.value)}
+                options={[
+                  { value: "", label: "Select Treatment" },
+                  { value: "checkup", label: "Check Up / Consultation" },
+                  { value: "cleaning", label: "Dental Cleaning" },
+                  { value: "root_canal", label: "Root Canal" },
+                  { value: "whitening", label: "Teeth Whitening" },
+                  { value: "crown", label: "Crown Fitting" },
+                  { value: "scaling", label: "Scaling" },
+                ]}
+              />
+              <div className="border border-gray-300 rounded-lg px-3 py-2.5">
+                <textarea
+                  placeholder="Notes"
+                  rows={2}
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  className="w-full text-sm outline-none placeholder:text-gray-400 bg-transparent resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* When */}
+          <div className="flex gap-6 items-start">
+            <div className="w-24 flex-shrink-0 pt-3 text-sm font-medium text-gray-700">When</div>
+            <div className="flex-1 space-y-3">
+              <div className="flex gap-3 items-center">
+                {/* Date */}
+                <div className="relative border border-gray-300 rounded-lg bg-white focus-within:border-indigo-400 flex items-center gap-2 px-3 flex-1">
+                  <span className="absolute left-3 top-1.5 text-[10px] text-gray-500 leading-none">Date (DD MMM, YYYY)</span>
+                  <svg className="h-4 w-4 text-gray-400 flex-shrink-0 mt-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="2"/><line x1="16" y1="2" x2="16" y2="6" strokeWidth="2"/><line x1="8" y1="2" x2="8" y2="6" strokeWidth="2"/><line x1="3" y1="10" x2="21" y2="10" strokeWidth="2"/>
+                  </svg>
+                  <input
+                    value={date} onChange={e => setDate(e.target.value)}
+                    className="flex-1 pt-5 pb-1.5 text-sm outline-none bg-transparent"
+                  />
+                </div>
+                {/* Time */}
+                <div className="relative border border-gray-300 rounded-lg bg-white focus-within:border-indigo-400 flex items-center gap-2 px-3 flex-1">
+                  <span className="absolute left-3 top-1.5 text-[10px] text-gray-500 leading-none">Time (HH:MM AM/PM)</span>
+                  <svg className="h-4 w-4 text-gray-400 flex-shrink-0 mt-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" strokeWidth="2"/><polyline points="12 7 12 12 15 15" strokeWidth="2"/>
+                  </svg>
+                  <input
+                    value={time} onChange={e => setTime(e.target.value)}
+                    className="flex-1 pt-5 pb-1.5 text-sm outline-none bg-transparent"
+                  />
+                </div>
+                {/* Walk-In */}
+                <button className="border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 whitespace-nowrap flex-shrink-0">
+                  Walk-In
+                </button>
+              </div>
+              <FSelect
+                label="Duration" required
+                value={duration} onChange={e => setDuration(e.target.value)}
+                options={[
+                  { value: "15 min", label: "15 min" },
+                  { value: "30 min", label: "30 min" },
+                  { value: "45 min", label: "45 min" },
+                  { value: "1 hour", label: "1 hour" },
+                  { value: "1.5 hours", label: "1.5 hours" },
+                  { value: "2 hours", label: "2 hours" },
+                ]}
+                className="w-48"
+              />
+            </div>
+          </div>
+
+          {/* Notifications */}
+          <div className="flex gap-6 items-start">
+            <div className="w-24 flex-shrink-0 pt-2 text-sm font-medium text-gray-700">Notifications</div>
+            <div className="flex-1">
+              <div className="border border-gray-300 rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-gray-50">
+                <span className="text-sm text-gray-400 italic">Patient: Email on Confirmation, Email on Reminder</span>
+                <CDown className="h-4 w-4 text-gray-400" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <button className="text-orange-500 text-sm hover:underline">Need Help?</button>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="px-6 py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">
+              CANCEL
+            </button>
+            <button className="px-6 py-2 bg-[#1e2d5a] rounded text-sm text-white hover:bg-[#1a2650]">
+              SAVE
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface Appointment {
   id: number;
@@ -148,6 +430,7 @@ const fullDays = [
 export function Calendar() {
   const [currentWeek] = useState("Feb 19 - Feb 25, 2026");
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("week");
+  const [showModal, setShowModal] = useState(false);
   const [visibleDoctors, setVisibleDoctors] = useState<string[]>(
     doctors.map((d) => d.name)
   );
@@ -193,12 +476,16 @@ export function Calendar() {
   };
 
   return (
+    <>
     <div className="flex h-screen flex-col bg-background p-8">
       <div className="mx-auto w-full max-w-[1400px]">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl">Appointments</h1>
-          <button className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm text-primary-foreground hover:bg-primary/90">
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm text-primary-foreground hover:bg-primary/90"
+          >
             <Plus className="h-4 w-4" />
             Add Appointment
           </button>
@@ -379,5 +666,8 @@ export function Calendar() {
         </div>
       </div>
     </div>
+
+    {showModal && <AppointmentModal onClose={() => setShowModal(false)} />}
+    </>
   );
 }

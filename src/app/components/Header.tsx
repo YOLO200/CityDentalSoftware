@@ -31,7 +31,7 @@ export function Header() {
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
       <div className="flex flex-1 items-center gap-4">
-        <h1 className="text-xl font-semibold text-foreground text-[#2563eb]">City Dental Software</h1>
+        <h1 className="text-xl font-semibold text-[#2563eb]">City Dental Software</h1>
         
         {/* Branch Selector Dropdown */}
         <div className="relative">
