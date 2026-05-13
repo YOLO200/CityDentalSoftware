@@ -16,6 +16,7 @@ import { PatientDetail } from "./pages/PatientDetail";
 import { Reports } from "./pages/Reports";
 import { Admin } from "./pages/Admin";
 import CRM from "./pages/CRM";
+import Settings from "./pages/Settings";
 
 export const router = createBrowserRouter([
   {
@@ -49,7 +50,7 @@ export const router = createBrowserRouter([
               { path: "/admin", Component: Admin },
               { path: "/crm", Component: CRM },
               { path: "/help", Component: ComingSoon },
-              { path: "/settings", Component: ComingSoon },
+              { path: "/settings", Component: Settings },
             ],
           },
         ],
