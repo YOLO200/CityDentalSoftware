@@ -449,7 +449,7 @@ export function SetupProfile() {
         </div>
 
         <p className="mt-8 text-center text-xs text-muted-foreground">
-          © 2026 City Dental Software. All rights reserved.
+          © 2026 Dentosys. All rights reserved.
         </p>
       </div>
     </div>
