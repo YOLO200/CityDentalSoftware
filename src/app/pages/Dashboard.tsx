@@ -1,4 +1,5 @@
 import { Users, Calendar, DollarSign, AlertCircle } from "lucide-react";
+import { useNavigate } from "react-router";
 import { KPICard } from "../components/KPICard";
 import {
   ComposedChart,
@@ -117,6 +118,7 @@ const revenueData = [
 ];
 
 export function Dashboard() {
+  const navigate = useNavigate();
   return (
     <div className="p-8">
       <div className="mx-auto max-w-7xl">
@@ -243,13 +245,16 @@ export function Dashboard() {
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             <h2 className="mb-4 text-xl">Quick Actions</h2>
             <div className="space-y-3">
-              <button className="w-full rounded-xl bg-primary px-4 py-3 text-left text-sm text-primary-foreground hover:bg-primary/90">
+              <button onClick={() => navigate("/patients/add")}
+                className="w-full rounded-xl bg-primary px-4 py-3 text-left text-sm text-primary-foreground hover:bg-primary/90">
                 + Add Patient
               </button>
-              <button className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left text-sm hover:bg-secondary">
+              <button onClick={() => navigate("/calendar?newModal=1")}
+                className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left text-sm hover:bg-secondary">
                 Schedule Appointment
               </button>
-              <button className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left text-sm hover:bg-secondary">
+              <button onClick={() => navigate("/patients")}
+                className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left text-sm hover:bg-secondary">
                 Create Invoice
               </button>
             </div>

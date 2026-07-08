@@ -6,7 +6,6 @@ import {
   FileText,
   UserCog,
   Handshake,
-  HelpCircle,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -21,7 +20,6 @@ const navigation = [
   { name: "Reports", href: "/reports", icon: FileText },
   { name: "Admin", href: "/admin", icon: UserCog },
   { name: "CRM", href: "/crm", icon: Handshake },
-  { name: "Help", href: "/help", icon: HelpCircle },
 ];
 
 export function Sidebar() {
@@ -33,7 +31,7 @@ export function Sidebar() {
     <div className="flex flex-col w-20 border-r border-border bg-card">
       <div className="flex h-16 items-center justify-center border-b border-border px-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground text-xs font-bold">
-          CD
+          D
         </div>
       </div>
       <nav className="flex-1 space-y-1 px-1 py-4">

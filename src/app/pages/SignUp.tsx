@@ -104,7 +104,7 @@ export function SignUp() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold text-primary">City Dental Software</h1>
+          <h1 className="text-3xl font-semibold text-primary">Dentosys</h1>
           <p className="mt-2 text-sm text-muted-foreground">Create your account</p>
         </div>
 
@@ -182,7 +182,7 @@ export function SignUp() {
         </div>
 
         <p className="mt-8 text-center text-xs text-muted-foreground">
-          © 2026 City Dental Software. All rights reserved.
+          © 2026 Dentosys. All rights reserved.
         </p>
       </div>
     </div>
