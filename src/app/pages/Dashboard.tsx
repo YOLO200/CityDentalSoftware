@@ -249,7 +249,7 @@ export function Dashboard() {
                 className="w-full rounded-xl bg-primary px-4 py-3 text-left text-sm text-primary-foreground hover:bg-primary/90">
                 + Add Patient
               </button>
-              <button onClick={() => navigate("/calendar")}
+              <button onClick={() => navigate("/calendar?newModal=1")}
                 className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left text-sm hover:bg-secondary">
                 Schedule Appointment
               </button>

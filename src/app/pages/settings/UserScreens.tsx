@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+export { RolesPermissions } from "./RolesPermissionsScreen";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import { useBranches } from "../admin/primitives";
@@ -192,95 +193,7 @@ export function StaffMembers() {
   );
 }
 
-// ─── Roles & Permissions ──────────────────────────────────────────────────────
-
-export function RolesPermissions() {
-  const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>(() => {
-    const m: Record<string, Record<string, boolean>> = {};
-    ROLES.forEach(r => {
-      m[r] = {};
-      MODULES.forEach(mod => {
-        PERMS.forEach(perm => {
-          m[r][`${mod}_${perm}`] = r === "Admin";
-        });
-      });
-    });
-    // Set default perms for Doctor
-    ["Patients","Appointments","Calendar"].forEach(mod => {
-      ["View","Create","Edit"].forEach(p => { m["Doctor"][`${mod}_${p}`] = true; });
-    });
-    // Receptionist
-    ["Patients","Appointments","Calendar","Billing"].forEach(mod => {
-      ["View","Create","Edit"].forEach(p => { m["Receptionist"][`${mod}_${p}`] = true; });
-    });
-    return m;
-  });
-  const [activeRole, setActiveRole] = useState(ROLES[0]);
-  const [saving, setSaving] = useState(false);
-
-  const toggle = (mod: string, perm: string) => {
-    setMatrix(prev => ({
-      ...prev,
-      [activeRole]: { ...prev[activeRole], [`${mod}_${perm}`]: !prev[activeRole]?.[`${mod}_${perm}`] }
-    }));
-  };
-
-  const save = async () => {
-    setSaving(true);
-    await supabase.from("clinic_settings").upsert(
-      ROLES.map(r => ({ key: `role_perms_${r.toLowerCase().replace(/\s/g, "_")}`, value: JSON.stringify(matrix[r]), updated_at: new Date().toISOString() })),
-      { onConflict: "key" }
-    );
-    setSaving(false);
-  };
-
-  return (
-    <div>
-      <SPageHeader title="Roles & Permissions" subtitle="Configure what each role can access and do" />
-      {/* Role tabs */}
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {ROLES.map(r => (
-          <button key={r} onClick={() => setActiveRole(r)}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition ${activeRole === r ? "bg-[#1e2d5a] text-white border-[#1e2d5a]" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
-            {r}
-          </button>
-        ))}
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-[#1e2d5a] text-white">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold w-40">Module</th>
-                {PERMS.map(p => <th key={p} className="px-4 py-2.5 text-center text-xs font-semibold">{p}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {MODULES.map((mod, i) => (
-                <tr key={mod} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
-                  <td className="px-4 py-2.5 text-xs font-medium text-gray-700">{mod}</td>
-                  {PERMS.map(perm => (
-                    <td key={perm} className="px-4 py-2.5 text-center">
-                      <input type="checkbox"
-                        checked={!!matrix[activeRole]?.[`${mod}_${perm}`]}
-                        onChange={() => toggle(mod, perm)}
-                        className="accent-[#1e2d5a] w-4 h-4 cursor-pointer"
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div className="flex gap-3">
-        <SaveButton onClick={save} loading={saving} />
-      </div>
-    </div>
-  );
-}
+// RolesPermissions is exported from RolesPermissionsScreen.tsx (re-exported at top of file)
 
 // ─── Access Control ───────────────────────────────────────────────────────────
 
