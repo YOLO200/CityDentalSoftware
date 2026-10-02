@@ -1,11 +1,32 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
 import { X, ChevronDown, Search, UserPlus, Plus, ChevronUp, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { Appointment, Task, DoctorUnavailability, CalendarSettings, Patient, AppointmentStatus, TaskStatus } from "./types";
 import {
-  CENTERS, DOCTORS, OPERATORS, PATIENTS, TREATMENT_CATS, TREATMENT_MAP,
-  SERIES_TYPES, PROJECTS, STAFF, DURATIONS, ALL_STATUSES, UNAVAILABILITY_REASONS,
+  CENTERS, OPERATORS, TREATMENT_CATS, TREATMENT_MAP,
+  SERIES_TYPES, PROJECTS, SUPPORT_STAFF, DURATIONS, ALL_STATUSES, UNAVAILABILITY_REASONS,
 } from "./mockData";
+import { supabase } from "../../../lib/supabase";
+
+/**
+ * Doctors and patients are real DB rows now, but they are consumed by a dozen
+ * nested sub-components in this file. A context keeps their signatures intact
+ * rather than threading two more props through every one of them.
+ *
+ * DOCTORS/PATIENTS were previously module-level mock arrays; the remaining
+ * mockData imports above are still static reference lists (treatment
+ * categories, durations, reasons) with no table behind them.
+ */
+interface CalendarRefs {
+  doctors: { id: string; name: string; color: string; label: string }[];
+  patients: Patient[];
+  branchId: string | null;
+  onPatientCreated: () => void;
+}
+const RefsContext = createContext<CalendarRefs>({
+  doctors: [], patients: [], branchId: null, onPatientCreated: () => {},
+});
+const useRefs = () => useContext(RefsContext);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toYMD(d: Date): string {
@@ -153,12 +174,47 @@ function QuickPatientModal({ onClose, onCreate }: {
   const [email, setEmail] = useState("");
   const [err,   setErr]   = useState("");
 
-  const save = () => {
+  const { branchId, onPatientCreated } = useRefs();
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
     if (!name.trim())  { setErr("Name is required."); return; }
     if (!phone.trim()) { setErr("Mobile number is required."); return; }
-    const newPatient: Patient = { id: `P${String(Date.now()).slice(-3)}`, name: name.trim(), phone, email: email || undefined };
-    PATIENTS.push(newPatient);
-    onCreate(newPatient);
+
+    // patients.first_name / last_name are both NOT NULL, but this form asks
+    // for a single name — split on the first space and fall back to "-".
+    const parts = name.trim().split(/\s+/);
+    const first = parts[0];
+    const last  = parts.slice(1).join(" ") || "-";
+
+    setSaving(true);
+    setErr("");
+    const { data, error } = await supabase
+      .from("patients")
+      .insert({
+        branch_id: branchId,
+        first_name: first,
+        last_name: last,
+        phone: phone.trim(),
+        email: email || null,
+        is_active: true,
+      })
+      .select("id, first_name, last_name, phone, email")
+      .single();
+    setSaving(false);
+
+    if (error || !data) {
+      setErr(error?.message ?? "Could not create patient.");
+      return;
+    }
+
+    onCreate({
+      id: data.id,
+      name: `${data.first_name} ${data.last_name}`.trim(),
+      phone: data.phone ?? "",
+      email: data.email ?? undefined,
+    });
+    onPatientCreated();   // refresh the parent's patient list
     onClose();
   };
 
@@ -236,12 +292,13 @@ function GroupPatientSelector({ selected, onChange }: {
   selected: Patient[];
   onChange: (p: Patient[]) => void;
 }) {
+  const { patients: allPatients } = useRefs();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return PATIENTS.filter(p =>
+    return allPatients.filter(p =>
       !selected.find(s => s.id === p.id) &&
       (p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || p.phone.includes(q))
     ).slice(0, 6);
@@ -335,7 +392,8 @@ function SingleAppointmentForm({ registerSave, onClose, onSaveAppointments, exis
 }) {
   const [center,   setCenter]   = useState(CENTERS[0].name);
   const [operatory,setOperatory]= useState("");
-  const [doctor,   setDoctor]   = useState(defaultDoctor ?? DOCTORS[0].name);
+  const { doctors, patients: allPatientRows } = useRefs();
+  const [doctor,   setDoctor]   = useState(defaultDoctor ?? doctors[0]?.name ?? "");
   const [patient,  setPatient]  = useState<Patient | null>(null);
   const [isNew,    setIsNew]    = useState(false);
   const [isWalkIn, setIsWalkIn] = useState(false);
@@ -351,7 +409,7 @@ function SingleAppointmentForm({ registerSave, onClose, onSaveAppointments, exis
   const [showQuick,setShowQuick]= useState(false);
   const [conflicts,setConflicts]= useState<string[]>([]);
 
-  const allPatients = [...PATIENTS];
+  const allPatients = [...allPatientRows];
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
@@ -394,15 +452,16 @@ function SingleAppointmentForm({ registerSave, onClose, onSaveAppointments, exis
   }, [patient, date, time, dur, doctor, center, cat, treat, notes, status, hasPay, isWalkIn, isNew, existingAppointments]);
 
   const commit = () => {
-    const doc = DOCTORS.find(d => d.name === doctor)!;
+    const doc = doctors.find(d => d.name === doctor);
+    if (!doc) { toast.error("Select a doctor"); return; }
     const apt: Appointment = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       appointmentType: isWalkIn ? "Walk-In" : "Regular",
       patientName: patient!.name,
       patientId: patient!.id,
       patientPhone: patient!.phone,
       isNewPatient: isNew,
-      doctor, doctorColor: doc.color,
+      doctor, doctorId: doc.id, doctorColor: doc.color,
       treatment: treat || (TREATMENT_MAP[cat]?.[0] ?? "Check Up / Consultation"),
       treatmentCategory: cat,
       center, operatory,
@@ -432,7 +491,7 @@ function SingleAppointmentForm({ registerSave, onClose, onSaveAppointments, exis
         {/* Who */}
         <SectionRow label="Who">
           <FS label="Doctor" required value={doctor} onChange={e => setDoctor(e.target.value)}
-            options={DOCTORS.map(d => ({ value: d.name, label: d.label }))} />
+            options={doctors.map(d => ({ value: d.name, label: d.label }))} />
           <div>
             <div className="flex gap-2">
               <PatientSearch value={patient} onSelect={setPatient} allPatients={allPatients} />
@@ -513,7 +572,8 @@ function AppointmentSeriesForm({ registerSave, onClose, onSaveAppointments, exis
 }) {
   const [center,    setCenter]    = useState(CENTERS[0].name);
   const [operatory, setOperatory] = useState("");
-  const [doctor,    setDoctor]    = useState(defaultDoctor ?? DOCTORS[0].name);
+  const { doctors, patients: allPatientRows } = useRefs();
+  const [doctor,    setDoctor]    = useState(defaultDoctor ?? doctors[0]?.name ?? "");
   const [patient,   setPatient]   = useState<Patient | null>(null);
   const [series,    setSeries]    = useState(SERIES_TYPES[0]);
   const [cat,       setCat]       = useState("Not Specified");
@@ -526,17 +586,18 @@ function AppointmentSeriesForm({ registerSave, onClose, onSaveAppointments, exis
   const [pendingApts, setPendingApts] = useState<Appointment[]>([]);
 
   const buildAppointments = (): Appointment[] => {
-    const doc = DOCTORS.find(d => d.name === doctor)!;
+    const doc = doctors.find(d => d.name === doctor);
+    if (!doc) { toast.error("Select a doctor"); return []; }
     const count = parseSeriesCount(series);
-    const seriesId = Date.now();
+    const seriesId = crypto.randomUUID();
     return Array.from({ length: count }, (_, i) => ({
-      id: seriesId + i,
+      id: crypto.randomUUID(),
       appointmentType: "Series" as const,
       patientName: patient!.name,
       patientId: patient!.id,
       patientPhone: patient!.phone,
       isNewPatient: false,
-      doctor, doctorColor: doc.color,
+      doctor, doctorId: doc.id, doctorColor: doc.color,
       treatment: TREATMENT_MAP[cat]?.[0] ?? "Check Up / Consultation",
       treatmentCategory: cat,
       center, operatory,
@@ -590,9 +651,9 @@ function AppointmentSeriesForm({ registerSave, onClose, onSaveAppointments, exis
 
         <SectionRow label="Who">
           <FS label="Doctor" required value={doctor} onChange={e => setDoctor(e.target.value)}
-            options={DOCTORS.map(d => ({ value: d.name, label: d.label }))} />
+            options={doctors.map(d => ({ value: d.name, label: d.label }))} />
           <div>
-            <PatientSearch value={patient} onSelect={setPatient} allPatients={PATIENTS} />
+            <PatientSearch value={patient} onSelect={setPatient} allPatients={allPatientRows} />
             <FieldError msg={errors.patient} />
           </div>
         </SectionRow>
@@ -665,7 +726,8 @@ function GroupAppointmentForm({ registerSave, onClose, onSaveAppointments, defau
 }) {
   const [center,    setCenter]    = useState(CENTERS[0].name);
   const [operatory, setOperatory] = useState("");
-  const [doctor,    setDoctor]    = useState(defaultDoctor ?? DOCTORS[0].name);
+  const { doctors, patients: allPatientRows } = useRefs();
+  const [doctor,    setDoctor]    = useState(defaultDoctor ?? doctors[0]?.name ?? "");
   const [patients,  setPatients]  = useState<Patient[]>([]);
   const [cat,       setCat]       = useState("Not Specified");
   const [treat,     setTreat]     = useState("");
@@ -684,17 +746,18 @@ function GroupAppointmentForm({ registerSave, onClose, onSaveAppointments, defau
     setErrors(e);
     if (Object.keys(e).length) return;
 
-    const doc = DOCTORS.find(d => d.name === doctor)!;
-    const groupId = Date.now();
+    const doc = doctors.find(d => d.name === doctor);
+    if (!doc) { toast.error("Select a doctor"); return; }
+    const groupId = crypto.randomUUID();
     const groupTitle = title || `Group Appointment — ${patients.length} Patients`;
     const apts: Appointment[] = patients.map((p, i) => ({
-      id: groupId + i,
+      id: crypto.randomUUID(),
       appointmentType: "Group" as const,
       patientName: p.name,
       patientId: p.id,
       patientPhone: p.phone,
       isNewPatient: false,
-      doctor, doctorColor: doc.color,
+      doctor, doctorId: doc.id, doctorColor: doc.color,
       treatment: treat || (TREATMENT_MAP[cat]?.[0] ?? "Check Up / Consultation"),
       treatmentCategory: cat,
       center, operatory,
@@ -726,7 +789,7 @@ function GroupAppointmentForm({ registerSave, onClose, onSaveAppointments, defau
 
       <SectionRow label="Who">
         <FS label="Doctor" required value={doctor} onChange={e => setDoctor(e.target.value)}
-          options={DOCTORS.map(d => ({ value: d.name, label: d.label }))} />
+          options={doctors.map(d => ({ value: d.name, label: d.label }))} />
         <div>
           <div className="text-[10px] text-gray-400 mb-1">Patients<span className="text-red-400 ml-0.5">*</span> (min 2)</div>
           <GroupPatientSelector selected={patients} onChange={setPatients} />
@@ -770,6 +833,7 @@ function SingleTaskForm({ registerSave, onClose, onSaveTask, defaultDate }: {
   onSaveTask: (tasks: Task[]) => void;
   defaultDate?: string;
 }) {
+  const { patients: taskPatients, doctors } = useRefs();
   const [center,       setCenter]       = useState(CENTERS[0].name);
   const [name,         setName]         = useState("");
   const [project,      setProject]      = useState("");
@@ -796,7 +860,7 @@ function SingleTaskForm({ registerSave, onClose, onSaveTask, defaultDate }: {
     if (Object.keys(e).length) return;
 
     const task: Task = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       name: name.trim(),
       center, project: project || undefined,
       assignedTo: assignedTo || undefined,
@@ -838,9 +902,13 @@ function SingleTaskForm({ registerSave, onClose, onSaveTask, defaultDate }: {
           <FS label="Project" value={project} onChange={e => setProject(e.target.value)}
             options={[{ value: "", label: "Select Project" }, ...PROJECTS.map(p => ({ value: p, label: p }))]} />
           <FS label="Assigned To" value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
-            options={[{ value: "", label: "Select Assigned To" }, ...STAFF.map(s => ({ value: s, label: s }))]} />
+            options={[
+              { value: "", label: "Select Assigned To" },
+              ...doctors.map(d => ({ value: d.name, label: d.name })),
+              ...SUPPORT_STAFF.map(s => ({ value: s, label: `${s} (no login)` })),
+            ]} />
         </div>
-        <PatientSearch value={patientQ} onSelect={setPatientQ} allPatients={PATIENTS} placeholder="Link to patient (optional)" />
+        <PatientSearch value={patientQ} onSelect={setPatientQ} allPatients={taskPatients} placeholder="Link to patient (optional)" />
         <div className="grid grid-cols-3 gap-3">
           <FI label="Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
           <FI label="Start Time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} disabled={allDay} />
@@ -891,6 +959,7 @@ function RecurringTaskForm({ registerSave, onClose, onSaveTask, defaultDate }: {
   onSaveTask: (tasks: Task[]) => void;
   defaultDate?: string;
 }) {
+  const { patients: taskPatients, doctors } = useRefs();
   const [center,     setCenter]     = useState(CENTERS[0].name);
   const [name,       setName]       = useState("");
   const [project,    setProject]    = useState("");
@@ -923,7 +992,7 @@ function RecurringTaskForm({ registerSave, onClose, onSaveTask, defaultDate }: {
 
     while (cur <= limit && idx < 52) {
       tasks.push({
-        id: Date.now() + idx,
+        id: crypto.randomUUID(),
         name: name.trim(),
         center, project: project || undefined,
         assignedTo: assignedTo || undefined,
@@ -963,9 +1032,13 @@ function RecurringTaskForm({ registerSave, onClose, onSaveTask, defaultDate }: {
           <FS label="Project" value={project} onChange={e => setProject(e.target.value)}
             options={[{ value: "", label: "Select Project" }, ...PROJECTS.map(p => ({ value: p, label: p }))]} />
           <FS label="Assigned To" value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
-            options={[{ value: "", label: "Select Assigned To" }, ...STAFF.map(s => ({ value: s, label: s }))]} />
+            options={[
+              { value: "", label: "Select Assigned To" },
+              ...doctors.map(d => ({ value: d.name, label: d.name })),
+              ...SUPPORT_STAFF.map(s => ({ value: s, label: `${s} (no login)` })),
+            ]} />
         </div>
-        <PatientSearch value={patientQ} onSelect={setPatientQ} allPatients={PATIENTS} placeholder="Link to patient (optional)" />
+        <PatientSearch value={patientQ} onSelect={setPatientQ} allPatients={taskPatients} placeholder="Link to patient (optional)" />
       </SectionRow>
 
       <SectionRow label="Schedule">
@@ -1027,6 +1100,7 @@ function ShowOnCalendarForm({ registerSave, onClose, calendarSettings, onUpdateC
   calendarSettings: CalendarSettings;
   onUpdateCalendarSettings: (s: Partial<CalendarSettings>) => void;
 }) {
+  const { doctors } = useRefs();
   const [show,    setShow]    = useState(calendarSettings.showTasksOnCalendar);
   const [vis,     setVis]     = useState(calendarSettings.taskVisibility);
   const [color,   setColor]   = useState(calendarSettings.taskColor);
@@ -1071,7 +1145,11 @@ function ShowOnCalendarForm({ registerSave, onClose, calendarSettings, onUpdateC
           <FS label="Filter by project" value={projF} onChange={e => setProjF(e.target.value)}
             options={[{ value: "", label: "All projects" }, ...PROJECTS.map(p => ({ value: p, label: p }))]} />
           <FS label="Filter by assigned user" value={userF} onChange={e => setUserF(e.target.value)}
-            options={[{ value: "", label: "All users" }, ...STAFF.map(s => ({ value: s, label: s }))]} />
+            options={[
+              { value: "", label: "All users" },
+              ...doctors.map(d => ({ value: d.name, label: d.name })),
+              ...SUPPORT_STAFF.map(s => ({ value: s, label: s })),
+            ]} />
         </div>
       </div>
     </div>
@@ -1085,6 +1163,7 @@ function DoctorUnavailableForm({ registerSave, onClose, onSaveUnavailability, ex
   onSaveUnavailability: (blocks: DoctorUnavailability[]) => void;
   existingAppointments: Appointment[];
 }) {
+  const { doctors } = useRefs();
   const [selectedDoctors, setSelectedDoctors] = useState<string[]>([]);
   const [fromDate,   setFromDate]   = useState(toYMD(new Date()));
   const [fromTime,   setFromTime]   = useState("09:00");
@@ -1100,7 +1179,7 @@ function DoctorUnavailableForm({ registerSave, onClose, onSaveUnavailability, ex
   const toggleDoctor = (name: string) => setSelectedDoctors(p => p.includes(name) ? p.filter(d => d !== name) : [...p, name]);
 
   const buildBlocks = (): DoctorUnavailability[] => {
-    const id = Date.now();
+    const id = crypto.randomUUID();
     if (selectedDoctors.length === 0) return [];
     return [{ id, doctors: selectedDoctors, fromDate, fromTime, toDate, toTime, reason, description: desc || undefined }];
   };
@@ -1162,7 +1241,7 @@ function DoctorUnavailableForm({ registerSave, onClose, onSaveUnavailability, ex
             </button>
             {docOpen && (
               <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                {DOCTORS.map(d => (
+                {doctors.map(d => (
                   <button key={d.name} onClick={() => toggleDoctor(d.name)}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-50">
                     <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedDoctors.includes(d.name) ? "bg-[#1e2d5a] border-[#1e2d5a]" : "border-gray-300"}`}>
@@ -1231,6 +1310,10 @@ export interface NewModalProps {
   onUpdateCalendarSettings: (s: Partial<CalendarSettings>) => void;
   existingAppointments: Appointment[];
   existingUnavailability: DoctorUnavailability[];
+  doctors: { id: string; name: string; color: string; label: string }[];
+  patients: Patient[];
+  branchId: string | null;
+  onPatientCreated: () => void;
   defaultDate?: string;
   defaultDoctor?: string;
   calendarSettings: CalendarSettings;
@@ -1238,7 +1321,8 @@ export interface NewModalProps {
 
 export function NewModal(props: NewModalProps) {
   const { onClose, onSaveAppointments, onSaveTasks, onSaveUnavailability, onUpdateCalendarSettings,
-    existingAppointments, existingUnavailability: _eu, defaultDate, defaultDoctor, calendarSettings } = props;
+    existingAppointments, existingUnavailability: _eu, defaultDate, defaultDoctor, calendarSettings,
+    doctors, patients, branchId, onPatientCreated } = props;
 
   const [topTab,   setTopTab]   = useState<TopTab>("appointment");
   const [apptSub,  setApptSub]  = useState<ApptSub>("single");
@@ -1276,6 +1360,7 @@ export function NewModal(props: NewModalProps) {
   const sharedFormProps = { registerSave, onClose, existingAppointments, defaultDate, defaultDoctor };
 
   return (
+    <RefsContext.Provider value={{ doctors, patients, branchId, onPatientCreated }}>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -1365,5 +1450,6 @@ export function NewModal(props: NewModalProps) {
         </div>
       </div>
     </div>
+    </RefsContext.Provider>
   );
 }

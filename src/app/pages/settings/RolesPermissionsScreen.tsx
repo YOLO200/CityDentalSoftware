@@ -7,6 +7,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "../../../lib/supabase";
 import { audit } from "../../../lib/permissions/audit";
+import { useBranches } from "../admin/primitives";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -396,8 +397,8 @@ function AssignUserModal({ roleName, onClose }: { roleName: string; onClose: () 
   const [user,    setUser]    = useState("");
   const [clinics, setClinics] = useState<string[]>([]);
   const [date,    setDate]    = useState("");
-  const allClinics = ["Speedwell Premium Division", "Virani Chowk", "Kothariya"];
-  const toggle = (c: string) => setClinics(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+  const allClinics = useBranches();
+  const toggle = (id: string) => setClinics(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const save = () => {
     if (!user) { toast.error("Please select a user"); return; }
     toast.success(`User assigned to ${roleName}`);
@@ -422,9 +423,9 @@ function AssignUserModal({ roleName, onClose }: { roleName: string; onClose: () 
             <label className="text-xs text-gray-500 font-medium block mb-1">Clinic Access</label>
             <div className="border border-gray-200 rounded-lg p-3 space-y-2">
               {allClinics.map(c => (
-                <label key={c} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={clinics.includes(c)} onChange={() => toggle(c)} className="accent-[#1e2d5a]" />
-                  {c}
+                <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={clinics.includes(c.id)} onChange={() => toggle(c.id)} className="accent-[#1e2d5a]" />
+                  {c.name}
                 </label>
               ))}
             </div>

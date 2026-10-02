@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { ChevronDown, ChevronLeft, ChevronRight, Copy, Plus, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { useBranch, branches } from "../context/BranchContext";
+import { useBranch } from "../context/BranchContext";
 
 // ─── Floating-label primitives ───────────────────────────────────────────────
 
@@ -118,15 +118,16 @@ export function AddPatient() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { selectedBranch } = useBranch();
+  const { branches, selectedBranch } = useBranch();
 
   const [activeTab, setActiveTab] = useState<Tab>("basic");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
 
   // Basic Info — syncs from header selection; changes here don't affect the header
-  const [center, setCenter] = useState(selectedBranch);
-  useEffect(() => { setCenter(selectedBranch); }, [selectedBranch]);
+  // Holds a branches.id; defaults to (and follows) the header's branch selector.
+  const [center, setCenter] = useState(selectedBranch?.id ?? "");
+  useEffect(() => { setCenter(selectedBranch?.id ?? ""); }, [selectedBranch]);
   const [patientId, setPatientId] = useState("");
   const [title, setTitle] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -227,6 +228,7 @@ export function AddPatient() {
     setSaveError(null);
     const { error } = await supabase.from("patients").insert({
       created_by: user?.id ?? null,
+      branch_id: center || null,
       first_name: firstName,
       last_name: surname,
       gender: gender || null,
@@ -313,7 +315,7 @@ export function AddPatient() {
             required
             value={center}
             onChange={(e) => setCenter(e.target.value)}
-            options={branches.map((b) => ({ value: b, label: b }))}
+            options={branches.map((b) => ({ value: b.id, label: b.name }))}
           />
           <FInput
             label="Patient ID"

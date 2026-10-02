@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "../../../lib/supabase";
+// Demo-only tables are served from memory; everything else hits Supabase.
+import { db as supabase } from "../../../lib/demoTables";
 import { useProfiles } from "../admin/primitives";
 import {
   SPageHeader, SFormCard, SInput, SSelect, STextarea, SColorInput, SUploadBox,
@@ -176,7 +177,10 @@ export function Branches() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("branches").select("*").order("name");
+    const { data } = await supabase
+      .from("branches")
+      .select("*, manager:manager_id(name)")
+      .order("name");
     setRows(data ?? []);
     setLoading(false);
   }, []);
@@ -190,14 +194,14 @@ export function Branches() {
   };
   const openEdit = (r: any) => {
     setEditing(r); setFName(r.name ?? ""); setFAddress(r.address ?? ""); setFPhone(r.phone ?? "");
-    setFEmail(r.email ?? ""); setFHours(r.working_hours ?? ""); setFManager(r.manager ?? "");
+    setFEmail(r.email ?? ""); setFHours(r.working_hours ?? ""); setFManager(r.manager?.name ?? "");
     setFActive(r.status !== "Inactive"); setError(null); setModal(true);
   };
 
   const save = async () => {
     if (!fName) { setError("Branch name is required."); return; }
     setSaving(true); setError(null);
-    const payload = { name: fName, address: fAddress || null, phone: fPhone || null, email: fEmail || null, working_hours: fHours || null, manager: fManager || null, status: fActive ? "Active" : "Inactive" };
+    const payload = { name: fName, address: fAddress || null, phone: fPhone || null, email: fEmail || null, working_hours: fHours || null, manager_id: managerMap[fManager] ?? null, status: fActive ? "Active" : "Inactive" };
     const { error: err } = editing
       ? await supabase.from("branches").update(payload).eq("id", editing.id)
       : await supabase.from("branches").insert(payload);
@@ -217,7 +221,7 @@ export function Branches() {
         columns={["Center Name","Address","Phone","Manager","Status","Actions"]}
         rows={rows.map(r => [
           <span className="font-medium">{r.name}</span>,
-          r.address ?? "—", r.phone ?? "—", r.manager ?? "—",
+          r.address ?? "—", r.phone ?? "—", r.manager?.name ?? "—",
           <SBadge status={r.status ?? "Active"} />,
           <div className="flex gap-1">
             <button onClick={() => openEdit(r)} className="text-[10px] border border-gray-200 rounded px-2 py-0.5 hover:bg-gray-50">Edit</button>

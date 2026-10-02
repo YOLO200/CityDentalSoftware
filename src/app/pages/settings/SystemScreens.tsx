@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { Database, Shield, Key, Plug, Clock, RefreshCw } from "lucide-react";
-import { supabase } from "../../../lib/supabase";
+// Demo-only tables are served from memory; everything else hits Supabase.
+import { db as supabase } from "../../../lib/demoTables";
 import {
   SPageHeader, SFormCard, SInput, SSelect, STable, SToggle,
-  SBadge, SActionRow, DangerButton, SaveButton, fmtDate,
+  SBadge, SActionRow, DangerButton, SaveButton, NewButton, fmtDate,
 } from "./primitives";
 
 // ─── Backup & Restore ─────────────────────────────────────────────────────────

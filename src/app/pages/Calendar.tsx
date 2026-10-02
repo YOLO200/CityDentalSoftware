@@ -10,13 +10,18 @@ import { toast } from "sonner";
 
 import type {
   Appointment, AppointmentStatus, Task, TaskStatus, DoctorUnavailability,
-  CalendarSettings, ViewMode,
+  CalendarSettings, ViewMode, Patient,
 } from "./calendar/types";
-import {
-  DOCTORS, ALL_STATUSES, CANCEL_REASONS, DURATIONS,
-  INITIAL_APPOINTMENTS, INITIAL_TASKS, INITIAL_UNAVAILABILITY,
-} from "./calendar/mockData";
+import { ALL_STATUSES, CANCEL_REASONS, DURATIONS } from "./calendar/mockData";
 import { NewModal } from "./calendar/NewModal";
+import { useBranch } from "../context/BranchContext";
+import { useAuth } from "../context/AuthContext";
+import {
+  loadDoctors, loadPatients, loadAppointments, loadTasks, loadUnavailability,
+  insertAppointments, updateAppointment as persistAppointment, insertTasks,
+  insertUnavailability, deleteTask as persistDeleteTask,
+  deleteUnavailability as persistDeleteUnavail, type Doctor,
+} from "./calendar/data";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function getMonday(d: Date): Date {
@@ -46,6 +51,7 @@ function isSameDay(a: Date, b: Date) {
 const STATUS_CFG: Record<AppointmentStatus, { color: string; bg: string }> = {
   "Scheduled":    { color: "text-blue-700",   bg: "bg-blue-100"   },
   "Confirmed":    { color: "text-green-700",  bg: "bg-green-100"  },
+  "Pending":      { color: "text-amber-700",  bg: "bg-amber-100"  },
   "Arrived":      { color: "text-teal-700",   bg: "bg-teal-100"   },
   "In Waiting":   { color: "text-amber-700",  bg: "bg-amber-100"  },
   "In Treatment": { color: "text-purple-700", bg: "bg-purple-100" },
@@ -54,6 +60,13 @@ const STATUS_CFG: Record<AppointmentStatus, { color: string; bg: string }> = {
   "No-show":      { color: "text-rose-700",   bg: "bg-rose-100"   },
   "Rescheduled":  { color: "text-orange-700", bg: "bg-orange-100" },
 };
+
+const UNKNOWN_CFG = { color: "text-gray-600", bg: "bg-gray-100" };
+
+/** Safe lookup: the DB enum can gain values before this map does. */
+function statusCfg(status: AppointmentStatus) {
+  return STATUS_CFG[status] ?? UNKNOWN_CFG;
+}
 
 const TASK_STATUS_CFG: Record<TaskStatus, { color: string; bg: string }> = {
   "New":         { color: "text-blue-700",   bg: "bg-blue-100"   },
@@ -69,6 +82,80 @@ const timeSlots = Array.from({ length: 20 }, (_, i) => {
 });
 
 // ── Positioning helpers ───────────────────────────────────────────────────────
+const toMins = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+
+export interface LaidOut {
+  apt: Appointment;
+  /** 0-based column within this appointment's overlap cluster. */
+  lane: number;
+  /** Total columns the cluster needs; 1 means no overlap, so full width. */
+  lanes: number;
+}
+
+/**
+ * Side-by-side layout for overlapping appointments.
+ *
+ * Appointments were previously all `left-0.5 right-0.5`, so anything sharing a
+ * time range rendered stacked and only the last one was readable. Three doctors
+ * seeing patients in parallel is normal, so overlap is the expected case.
+ *
+ * Two passes:
+ *  1. Sweep in start order, cutting a new *cluster* whenever an appointment
+ *     starts at or after the furthest end seen so far. Clusters are groups of
+ *     transitively-overlapping appointments.
+ *  2. Within a cluster, greedily place each appointment in the first lane whose
+ *     previous occupant has already finished, else open a new lane.
+ *
+ * Width is 1/lanes, so two overlapping appointments each take half, three take
+ * a third, and so on. Every appointment in a cluster shares the same lane count
+ * so their edges line up.
+ */
+function layoutOverlaps(apts: Appointment[]): LaidOut[] {
+  const sorted = [...apts].sort(
+    (a, b) => toMins(a.startTime) - toMins(b.startTime) || toMins(a.endTime) - toMins(b.endTime),
+  );
+
+  const out: LaidOut[] = [];
+  let cluster: Appointment[] = [];
+  let clusterEnd = -1;
+
+  const flush = () => {
+    if (cluster.length === 0) return;
+    const laneEnds: number[] = [];
+    const laneOf = new Map<string, number>();
+
+    for (const a of cluster) {
+      const s = toMins(a.startTime);
+      const e = toMins(a.endTime);
+      let lane = laneEnds.findIndex(end => end <= s);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(e);
+      } else {
+        laneEnds[lane] = e;
+      }
+      laneOf.set(a.id, lane);
+    }
+
+    const lanes = laneEnds.length;
+    for (const a of cluster) out.push({ apt: a, lane: laneOf.get(a.id) ?? 0, lanes });
+    cluster = [];
+    clusterEnd = -1;
+  };
+
+  for (const a of sorted) {
+    if (cluster.length > 0 && toMins(a.startTime) >= clusterEnd) flush();
+    cluster.push(a);
+    clusterEnd = Math.max(clusterEnd, toMins(a.endTime));
+  }
+  flush();
+
+  return out;
+}
+
 function getPos(startTime: string, endTime: string) {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
@@ -125,7 +212,7 @@ function FTextarea({ label, className = "", ...props }: React.TextareaHTMLAttrib
 
 // ── StatusBadge ───────────────────────────────────────────────────────────────
 function StatusBadge({ status, sm }: { status: AppointmentStatus; sm?: boolean }) {
-  const c = STATUS_CFG[status];
+  const c = statusCfg(status);
   return (
     <span className={`inline-flex items-center rounded-full font-medium ${c.bg} ${c.color} ${sm ? "px-1.5 py-0.5 text-[9px]" : "px-2.5 py-1 text-xs"}`}>
       {status}
@@ -340,7 +427,7 @@ function SidePanel({ item, onClose, onQuickStatus, onEdit, onCancel, onReschedul
 
   if (item.kind === "task") {
     const task = item.data;
-    const cfg = TASK_STATUS_CFG[task.status];
+    const cfg = TASK_STATUS_CFG[task.status] ?? UNKNOWN_CFG;
     return (
       <div className="fixed right-0 top-0 h-full w-80 bg-white border-l border-gray-200 shadow-2xl z-40 flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
@@ -410,25 +497,45 @@ function SidePanel({ item, onClose, onQuickStatus, onEdit, onCancel, onReschedul
 }
 
 // ── Appointment Card ──────────────────────────────────────────────────────────
-function AptCard({ apt, compact, onClick }: { apt: Appointment; compact?: boolean; onClick: () => void }) {
+function AptCard({ apt, compact, onClick, lane = 0, lanes = 1 }: {
+  apt: Appointment; compact?: boolean; onClick: () => void; lane?: number; lanes?: number;
+}) {
   const { top, height } = getPos(apt.startTime, apt.endTime);
-  const cfg = STATUS_CFG[apt.status];
+  const cfg = statusCfg(apt.status);
   const faded = apt.status === "Cancelled" || apt.status === "No-show";
   const isGroup = apt.appointmentType === "Group";
+
+  // 1/lanes of the column, offset by lane index. 1px gutters keep adjacent
+  // cards visually separate without maths that drifts as lanes grow.
+  const widthPct = 100 / lanes;
+  const narrow = lanes > 1;
+  const veryNarrow = lanes > 2;
+
   return (
     <div onClick={e => { e.stopPropagation(); onClick(); }}
-      className={`absolute left-0.5 right-0.5 rounded-lg overflow-hidden cursor-pointer z-10 shadow-sm hover:shadow-md transition-all border-l-[3px] ${faded ? "opacity-50" : ""}`}
-      style={{ top, height, backgroundColor: apt.doctorColor + "18", borderLeftColor: apt.doctorColor }}>
-      <div className="p-1.5 h-full flex flex-col justify-between">
+      title={`${apt.patientName} · ${apt.startTime}–${apt.endTime} · ${apt.doctor} · ${apt.treatment}`}
+      className={`absolute rounded-lg overflow-hidden cursor-pointer shadow-sm hover:shadow-md hover:z-20 transition-all border-l-[3px] ${faded ? "opacity-50" : ""}`}
+      style={{
+        top,
+        height,
+        left: `calc(${lane * widthPct}% + 1px)`,
+        width: `calc(${widthPct}% - 2px)`,
+        zIndex: 10 + lane,
+        backgroundColor: apt.doctorColor + "18",
+        borderLeftColor: apt.doctorColor,
+      }}>
+      <div className={`${veryNarrow ? "p-0.5" : "p-1.5"} h-full flex flex-col justify-between`}>
         <div>
           <div className="text-[11px] font-semibold text-gray-800 truncate leading-tight">
             {isGroup ? `👥 ${apt.groupTitle ?? apt.patientName}` : apt.patientName}
           </div>
-          {!compact && <div className="text-[10px] text-gray-500 truncate">{apt.treatment}</div>}
-          <div className="text-[10px] text-gray-500">{apt.startTime}–{apt.endTime}</div>
+          {!compact && !narrow && <div className="text-[10px] text-gray-500 truncate">{apt.treatment}</div>}
+          {!veryNarrow && <div className="text-[10px] text-gray-500 truncate">{apt.startTime}–{apt.endTime}</div>}
         </div>
         <div className="flex items-center gap-1 flex-wrap mt-0.5">
-          <span className={`text-[9px] px-1 py-0.5 rounded-full font-medium ${cfg.bg} ${cfg.color}`}>{apt.status}</span>
+          {!veryNarrow && (
+            <span className={`text-[9px] px-1 py-0.5 rounded-full font-medium ${cfg.bg} ${cfg.color}`}>{apt.status}</span>
+          )}
           {apt.isNewPatient && <span className="text-[9px] px-1 py-0.5 rounded-full bg-blue-50 text-blue-500 font-medium">New</span>}
           {apt.isWalkIn && <span className="text-[9px] px-1 py-0.5 rounded-full bg-orange-50 text-orange-500 font-medium">Walk-In</span>}
           {apt.hasPendingPayment && <span className="text-[9px] px-1 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">₹</span>}
@@ -453,7 +560,7 @@ function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
           📋 {task.name}
         </div>
         <div className="text-[10px] text-gray-500">{task.startTime}–{task.endTime}</div>
-        <span className={`text-[9px] px-1 py-0.5 rounded-full font-medium inline-block w-fit ${TASK_STATUS_CFG[task.status].bg} ${TASK_STATUS_CFG[task.status].color}`}>
+        <span className={`text-[9px] px-1 py-0.5 rounded-full font-medium inline-block w-fit ${(TASK_STATUS_CFG[task.status] ?? UNKNOWN_CFG).bg} ${(TASK_STATUS_CFG[task.status] ?? UNKNOWN_CFG).color}`}>
           {task.status}
         </span>
       </div>
@@ -515,7 +622,10 @@ function DayColumn({ ymd, appointments, tasks, unavailabilities, doctorFilter, i
         <div key={t} className="h-12 border-b border-border cursor-pointer hover:bg-primary/5 transition-colors" onClick={onCellClick} />
       ))}
       {dayUnavail.map(u => <UnavailCard key={u.id} block={u} onClick={() => onUnavailClick(u)} />)}
-      {dayApts.map(apt => <AptCard key={apt.id} apt={apt} compact onClick={() => onAptClick(apt)} />)}
+      {layoutOverlaps(dayApts).map(({ apt, lane, lanes }) => (
+        <AptCard key={apt.id} apt={apt} compact lane={lane} lanes={lanes}
+          onClick={() => onAptClick(apt)} />
+      ))}
       {dayTasks.map(task => <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />)}
     </div>
   );
@@ -610,12 +720,13 @@ function DayView({ date, appointments, tasks, unavailabilities, onAptClick, onTa
 }
 
 // ── Doctor View ───────────────────────────────────────────────────────────────
-function DoctorView({ date, appointments, tasks, unavailabilities, visibleDoctors, onAptClick, onTaskClick, onUnavailClick, onCellClick }: {
+function DoctorView({ date, appointments, tasks, unavailabilities, visibleDoctors, doctors, onAptClick, onTaskClick, onUnavailClick, onCellClick }: {
   date: Date;
   appointments: Appointment[];
   tasks: Task[];
   unavailabilities: DoctorUnavailability[];
   visibleDoctors: string[];
+  doctors: Doctor[];
   onAptClick: (apt: Appointment) => void;
   onTaskClick: (task: Task) => void;
   onUnavailClick: (block: DoctorUnavailability) => void;
@@ -623,7 +734,7 @@ function DoctorView({ date, appointments, tasks, unavailabilities, visibleDoctor
 }) {
   const today = new Date();
   const ymd   = toYMD(date);
-  const cols  = DOCTORS.filter(d => visibleDoctors.includes(d.name));
+  const cols  = doctors.filter(d => visibleDoctors.includes(d.name));
 
   if (!cols.length) {
     return (
@@ -737,11 +848,18 @@ function MonthView({ baseDate, appointments, tasks, onDayClick }: {
 // ── Calendar Page ─────────────────────────────────────────────────────────────
 export function Calendar() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { selectedBranch } = useBranch();
+  const { user } = useAuth();
   const [baseDate,          setBaseDate]          = useState(new Date());
   const [viewMode,          setViewMode]          = useState<ViewMode>("week");
-  const [appointments,      setAppointments]      = useState<Appointment[]>(INITIAL_APPOINTMENTS);
-  const [tasks,             setTasks]             = useState<Task[]>(INITIAL_TASKS);
-  const [unavailabilities,  setUnavailabilities]  = useState<DoctorUnavailability[]>(INITIAL_UNAVAILABILITY);
+  const [appointments,      setAppointments]      = useState<Appointment[]>([]);
+  const [tasks,             setTasks]             = useState<Task[]>([]);
+  const [unavailabilities,  setUnavailabilities]  = useState<DoctorUnavailability[]>([]);
+  const [doctors,           setDoctors]           = useState<Doctor[]>([]);
+  const [doctorsLoaded,     setDoctorsLoaded]     = useState(false);
+  const [patients,          setPatients]          = useState<Patient[]>([]);
+  const [loading,           setLoading]           = useState(true);
+  const [loadError,         setLoadError]         = useState<string | null>(null);
   const [calendarSettings,  setCalendarSettings]  = useState<CalendarSettings>({ showTasksOnCalendar: true, taskColor: "#6366F1", taskVisibility: "all" });
   const [selectedItem,      setSelectedItem]      = useState<SelectedItem | undefined>();
   const [showNewModal,      setShowNewModal]      = useState(false);
@@ -749,7 +867,7 @@ export function Calendar() {
   const [showReschedule,    setShowReschedule]    = useState(false);
   const [newModalDate,      setNewModalDate]      = useState<string | undefined>();
   const [newModalDoctor,    setNewModalDoctor]    = useState<string | undefined>();
-  const [visibleDoctors,    setVisibleDoctors]    = useState<string[]>(DOCTORS.map(d => d.name));
+  const [visibleDoctors,    setVisibleDoctors]    = useState<string[]>([]);
   const [statusFilter,      setStatusFilter]      = useState<AppointmentStatus | "All">("All");
   const [search,            setSearch]            = useState("");
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -760,6 +878,61 @@ export function Calendar() {
       setSearchParams({}, { replace: true });
     }
   }, []);
+
+  // Doctors come from public.profiles and are needed to resolve doctor_id ->
+  // name/colour, so everything else waits on them.
+  useEffect(() => {
+    let cancelled = false;
+    loadDoctors()
+      .then(docs => {
+        if (cancelled) return;
+        setDoctors(docs);
+        setVisibleDoctors(docs.map(d => d.name));
+      })
+      .catch(e => { if (!cancelled) setLoadError(e.message ?? String(e)); })
+      .finally(() => { if (!cancelled) setDoctorsLoaded(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Fetch a 3-month window around the current month rather than the exact
+  // visible range, so day/week navigation inside a month needs no refetch.
+  const rangeFrom = useMemo(() => {
+    const d = new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, 1);
+    return toYMD(d);
+  }, [baseDate.getFullYear(), baseDate.getMonth()]);
+  const rangeTo = useMemo(() => {
+    const d = new Date(baseDate.getFullYear(), baseDate.getMonth() + 2, 0);
+    return toYMD(d);
+  }, [baseDate.getFullYear(), baseDate.getMonth()]);
+
+  const reload = useCallback(async () => {
+    if (!selectedBranch) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [apts, tsk, unav, pats] = await Promise.all([
+        loadAppointments(selectedBranch.id, rangeFrom, rangeTo, doctors),
+        loadTasks(selectedBranch.id, rangeFrom, rangeTo, doctors),
+        loadUnavailability(selectedBranch.id, rangeFrom, rangeTo, doctors),
+        loadPatients(selectedBranch.id),
+      ]);
+      setAppointments(apts);
+      setTasks(tsk);
+      setUnavailabilities(unav);
+      setPatients(pats);
+    } catch (e: any) {
+      console.error("Calendar load failed:", e);
+      setLoadError(e.message ?? String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedBranch, rangeFrom, rangeTo, doctors]);
+
+  useEffect(() => {
+    if (!doctorsLoaded) return;
+    if (!selectedBranch) { setLoading(false); return; }
+    reload();
+  }, [doctorsLoaded, reload, selectedBranch]);
 
   const weekStart = useMemo(() => getMonday(baseDate), [baseDate.toDateString()]);
   const weekDays  = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart.toDateString()]);
@@ -800,26 +973,56 @@ export function Calendar() {
   );
 
   // ── Appointment actions ───────────────────────────────────────────────────
-  const updateApt = (updated: Appointment) => {
+  const updateApt = async (updated: Appointment) => {
+    // Optimistic locally so the UI stays responsive, then persist and reload so
+    // whatever the DB actually stored (enum coercion, triggers) is what shows.
     setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
     if (selectedItem?.kind === "appointment" && selectedItem.data.id === updated.id)
       setSelectedItem({ kind: "appointment", data: updated });
+    try {
+      await persistAppointment(updated);
+      await reload();
+    } catch (e: any) {
+      toast.error(`Could not save appointment: ${e.message ?? e}`);
+      await reload();
+    }
   };
 
-  const handleSaveAppointments = useCallback((apts: Appointment[]) => {
-    setAppointments(prev => [...prev, ...apts]);
-    setShowNewModal(false);
-  }, []);
+  const handleSaveAppointments = useCallback(async (apts: Appointment[]) => {
+    if (!selectedBranch) return;
+    try {
+      await insertAppointments(apts, selectedBranch.id);
+      setShowNewModal(false);
+      await reload();
+      toast.success(apts.length > 1 ? `${apts.length} appointments created` : "Appointment created");
+    } catch (e: any) {
+      toast.error(`Could not create appointment: ${e.message ?? e}`);
+    }
+  }, [selectedBranch, reload]);
 
-  const handleSaveTasks = useCallback((newTasks: Task[]) => {
-    setTasks(prev => [...prev, ...newTasks]);
-    setShowNewModal(false);
-  }, []);
+  const handleSaveTasks = useCallback(async (newTasks: Task[]) => {
+    if (!selectedBranch) return;
+    try {
+      await insertTasks(newTasks, selectedBranch.id, doctors, user?.id);
+      setShowNewModal(false);
+      await reload();
+      toast.success(newTasks.length > 1 ? `${newTasks.length} tasks created` : "Task created");
+    } catch (e: any) {
+      toast.error(`Could not create task: ${e.message ?? e}`);
+    }
+  }, [selectedBranch, doctors, user, reload]);
 
-  const handleSaveUnavailability = useCallback((blocks: DoctorUnavailability[]) => {
-    setUnavailabilities(prev => [...prev, ...blocks]);
-    setShowNewModal(false);
-  }, []);
+  const handleSaveUnavailability = useCallback(async (blocks: DoctorUnavailability[]) => {
+    if (!selectedBranch) return;
+    try {
+      await insertUnavailability(blocks, selectedBranch.id, doctors, user?.id);
+      setShowNewModal(false);
+      await reload();
+      toast.success("Unavailability saved");
+    } catch (e: any) {
+      toast.error(`Could not save unavailability: ${e.message ?? e}`);
+    }
+  }, [selectedBranch, doctors, user, reload]);
 
   const handleUpdateCalendarSettings = useCallback((s: Partial<CalendarSettings>) => {
     setCalendarSettings(prev => ({ ...prev, ...s }));
@@ -939,10 +1142,30 @@ export function Calendar() {
           </div>
         </div>
 
+        {/* ── Load state / diagnostics ── */}
+        {loadError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            Could not load calendar data: {loadError}
+          </div>
+        )}
+        {!selectedBranch && !loading && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            No branch selected — add one under Settings → Branches.
+          </div>
+        )}
+        {doctorsLoaded && doctors.length === 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            No staff profiles found. Appointments need a doctor, so create a profile first
+            (sign up, then complete Setup Profile).
+          </div>
+        )}
+
         {/* ── Doctor legend ── */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-muted-foreground">Doctors:</span>
-          {DOCTORS.map(doc => (
+          <span className="text-xs font-medium text-muted-foreground">
+            Doctors:{loading ? " loading…" : ""}
+          </span>
+          {doctors.map(doc => (
             <button key={doc.name}
               onClick={() => setVisibleDoctors(prev => prev.includes(doc.name) ? prev.filter(d => d !== doc.name) : [...prev, doc.name])}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors ${visibleDoctors.includes(doc.name) ? "bg-secondary" : "opacity-40 hover:opacity-60"}`}>
@@ -979,7 +1202,7 @@ export function Calendar() {
         {viewMode === "doctor" && (
           <DoctorView date={baseDate} appointments={filteredApts}
             tasks={visibleTasks} unavailabilities={unavailabilities}
-            visibleDoctors={visibleDoctors}
+            visibleDoctors={visibleDoctors} doctors={doctors}
             onCellClick={(date, doctor) => openNew(date, doctor)}
             {...calendarEventHandlers} />
         )}
@@ -1001,18 +1224,28 @@ export function Calendar() {
           onCancel={() => setShowCancel(true)}
           onReschedule={() => setShowReschedule(true)}
           onEditTask={() => toast.info("Edit task — coming soon")}
-          onDeleteTask={() => {
+          onDeleteTask={async () => {
             if (selectedItem.kind === "task") {
-              setTasks(prev => prev.filter(t => t.id !== selectedItem.data.id));
-              setSelectedItem(undefined);
-              toast.success("Task deleted");
+              try {
+                await persistDeleteTask(selectedItem.data.id);
+                setSelectedItem(undefined);
+                await reload();
+                toast.success("Task deleted");
+              } catch (e: any) {
+                toast.error(`Could not delete task: ${e.message ?? e}`);
+              }
             }
           }}
-          onDeleteUnavail={() => {
+          onDeleteUnavail={async () => {
             if (selectedItem.kind === "unavailability") {
-              setUnavailabilities(prev => prev.filter(u => u.id !== selectedItem.data.id));
-              setSelectedItem(undefined);
-              toast.success("Unavailability block removed");
+              try {
+                await persistDeleteUnavail(selectedItem.data.id);
+                setSelectedItem(undefined);
+                await reload();
+                toast.success("Unavailability block removed");
+              } catch (e: any) {
+                toast.error(`Could not remove block: ${e.message ?? e}`);
+              }
             }
           }}
         />
@@ -1028,6 +1261,10 @@ export function Calendar() {
           onUpdateCalendarSettings={handleUpdateCalendarSettings}
           existingAppointments={appointments}
           existingUnavailability={unavailabilities}
+          doctors={doctors}
+          patients={patients}
+          branchId={selectedBranch?.id ?? null}
+          onPatientCreated={reload}
           defaultDate={newModalDate}
           defaultDoctor={newModalDoctor}
           calendarSettings={calendarSettings}

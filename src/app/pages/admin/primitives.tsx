@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronDown, Trash2, Plus, Upload } from "lucide-react";
-import { supabase } from "../../../lib/supabase";
+// Demo-only tables are served from memory; everything else hits Supabase.
+import { db as supabase } from "../../../lib/demoTables";
 import { useAuth } from "../../context/AuthContext";
 
 // ─── DB hooks ─────────────────────────────────────────────────────────────────

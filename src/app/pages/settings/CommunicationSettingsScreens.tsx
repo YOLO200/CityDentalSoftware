@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Send } from "lucide-react";
-import { supabase } from "../../../lib/supabase";
+// Demo-only tables are served from memory; everything else hits Supabase.
+import { db as supabase } from "../../../lib/demoTables";
 import {
   SPageHeader, SFormCard, SInput, SSelect, STextarea, STabs, STable, SModal,
   SToggle, SActionRow, NewButton, SaveButton, ResetBtn,

@@ -3,12 +3,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { useBranch, branches } from "../context/BranchContext";
+import { useBranch } from "../context/BranchContext";
 
 export function Header() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { selectedBranch, setSelectedBranch } = useBranch();
+  const { branches, selectedBranch, setSelectedBranch } = useBranch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileRole, setProfileRole] = useState("");
@@ -40,7 +40,7 @@ export function Header() {
             className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm hover:bg-secondary transition-colors"
           >
             <MapPin className="h-4 w-4 text-primary" />
-            <span className="font-medium">{selectedBranch}</span>
+            <span className="font-medium">{selectedBranch?.name ?? "Loading…"}</span>
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
           </button>
           
@@ -56,7 +56,7 @@ export function Header() {
               <div className="absolute left-0 top-full mt-2 w-48 rounded-xl border border-border bg-card shadow-lg z-20">
                 {branches.map((branch) => (
                   <button
-                    key={branch}
+                    key={branch.id}
                     onClick={() => {
                       setSelectedBranch(branch);
                       setIsDropdownOpen(false);
@@ -64,13 +64,13 @@ export function Header() {
                     className={`
                       w-full px-4 py-2.5 text-left text-sm transition-colors
                       first:rounded-t-xl last:rounded-b-xl
-                      ${selectedBranch === branch 
-                        ? "bg-primary text-primary-foreground font-medium" 
+                      ${selectedBranch?.id === branch.id
+                        ? "bg-primary text-primary-foreground font-medium"
                         : "hover:bg-secondary"
                       }
                     `}
                   >
-                    {branch}
+                    {branch.name}
                   </button>
                 ))}
               </div>

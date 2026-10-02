@@ -1,5 +1,11 @@
+/**
+ * Must stay in sync with the appointment_status_type enum in Postgres
+ * (migration 011). "Pending" is DB-only in origin — the Dashboard's
+ * unconfirmed-appointments alert filters on it and the seed writes it — but it
+ * is a real value that comes back from queries, so it belongs here.
+ */
 export type AppointmentStatus =
-  | "Scheduled" | "Confirmed" | "Arrived" | "In Waiting"
+  | "Scheduled" | "Confirmed" | "Pending" | "Arrived" | "In Waiting"
   | "In Treatment" | "Completed" | "Cancelled" | "No-show" | "Rescheduled";
 
 export type AppointmentType  = "Regular" | "Walk-In" | "Group" | "Series";
@@ -16,13 +22,15 @@ export interface Patient {
 }
 
 export interface Appointment {
-  id: number;
+  /** uuid from public.appointments.id */
+  id: string;
   appointmentType: AppointmentType;
   patientName: string;
   patientId: string;
   patientPhone: string;
   isNewPatient: boolean;
-  doctor: string;
+  doctor: string;      // profiles.name, for display
+  doctorId: string;    // profiles.id — the actual FK
   doctorColor: string;
   treatment: string;
   treatmentCategory: string;
@@ -37,14 +45,15 @@ export interface Appointment {
   cancelReason?: string;
   rescheduleReason?: string;
   isWalkIn?: boolean;
-  groupId?: number;
+  groupId?: string;
   groupPatients?: Array<{ id: string; name: string }>;
   groupTitle?: string;
-  seriesId?: number;
+  seriesId?: string;
 }
 
 export interface Task {
-  id: number;
+  /** uuid from public.calendar_tasks.id */
+  id: string;
   name: string;
   center: string;
   project?: string;
@@ -68,7 +77,8 @@ export interface Task {
 }
 
 export interface DoctorUnavailability {
-  id: number;
+  /** uuid from public.doctor_unavailability.id */
+  id: string;
   doctors: string[];
   fromDate: string;
   fromTime: string;
