@@ -80,6 +80,50 @@ export function SSelect({ label, options, value, onChange, required, className =
   );
 }
 
+/**
+ * Checkbox group for picking several options. Built here rather than reusing
+ * components/form/MultiSelect so it matches the settings styling and avoids
+ * that component's uncleaned onBlur timeout.
+ */
+export function SMultiCheck({ label, options, selected, onChange, required, emptyText = "No options available", className = "" }: {
+  label?: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  required?: boolean;
+  emptyText?: string;
+  className?: string;
+}) {
+  const toggle = (v: string) =>
+    onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]);
+
+  return (
+    <div className={`flex flex-col gap-1 ${className}`}>
+      {label && <label className="text-xs text-gray-500 font-medium">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
+      <div className="max-h-36 overflow-y-auto rounded-lg border border-gray-300 bg-white px-1 py-1">
+        {options.length === 0 ? (
+          <p className="px-2 py-1.5 text-xs text-gray-400">{emptyText}</p>
+        ) : (
+          options.map(o => (
+            <label key={o.value} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+              <input
+                type="checkbox"
+                checked={selected.includes(o.value)}
+                onChange={() => toggle(o.value)}
+                className="accent-[#1e2d5a]"
+              />
+              {o.label}
+            </label>
+          ))
+        )}
+      </div>
+      {selected.length > 0 && (
+        <p className="text-[10px] text-gray-400">{selected.length} selected</p>
+      )}
+    </div>
+  );
+}
+
 export function STextarea({ label, value, onChange, placeholder = "", rows = 3, className = "" }: {
   label?: string; value: string; onChange: (v: string) => void;
   placeholder?: string; rows?: number; className?: string;

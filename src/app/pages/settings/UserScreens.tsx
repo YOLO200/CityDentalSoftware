@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useBranches } from "../admin/primitives";
 import {
   SPageHeader, SFormCard, SInput, SSelect, STable, SModal, SBadge,
-  SToggle, SActionRow, NewButton, SaveButton, ResetBtn, fmtDate,
+  SToggle, SActionRow, NewButton, SaveButton, ResetBtn, fmtDate, SMultiCheck,
 } from "./primitives";
 
 const ROLES      = ["Admin","Doctor","Receptionist","Accountant","Inventory Manager","CRM Executive"];
@@ -23,9 +23,10 @@ export function Users() {
   const [fFirst,    setFFirst]    = useState("");
   const [fLast,     setFLast]     = useState("");
   const [fEmail,    setFEmail]    = useState("");
-  const [fPhone,    setFPhone]    = useState("");
   const [fRole,     setFRole]     = useState("");
-  const [fBranch,   setFBranch]   = useState("");
+  // Several centres per user: the first becomes their home branch
+  // (profiles.branch_id), all of them become user_clinics rows.
+  const [fBranches, setFBranches] = useState<string[]>([]);
   const [notice,    setNotice]    = useState<string | null>(null);
 
   // Real RBAC roles, not the hardcoded ROLES list: this choice becomes a
@@ -39,8 +40,6 @@ export function Users() {
   const [fFilterRole, setFFilterRole]   = useState("All");
   const [fFilterStatus, setFFilterStatus] = useState("All");
 
-  const branchMap = Object.fromEntries(branches.map(b => [b.name, b.id]));
-
   const load = useCallback(async () => {
     setLoading(true);
     let q = supabase.from("profiles").select("id, name, email, role, branch_id, status, last_login, branches(name)");
@@ -52,20 +51,18 @@ export function Users() {
     setLoading(false);
   }, [fFilterRole, fFilterStatus]);
 
-  const reset = () => { setFFirst(""); setFLast(""); setFEmail(""); setFPhone(""); setFRole(""); setFBranch(""); setError(null); setNotice(null); };
+  const reset = () => { setFFirst(""); setFLast(""); setFEmail(""); setFRole(""); setFBranches([]); setError(null); setNotice(null); };
 
   // Sends an invite email. The account is created server-side by the
   // invite-user Edge Function, because inviting requires the service-role key
   // and that must never reach the browser. No password is set here — the
   // invited user chooses their own via the emailed link.
   const invite = async () => {
-    const branchId = branchMap[fBranch];
     const missing = [
       !fFirst.trim() && "First name",
       !fEmail.trim() && "Email",
-      !fPhone.trim() && "Mobile",
       !fRole && "Role",
-      !branchId && "Assigned center",
+      fBranches.length === 0 && "At least one center",
     ].filter(Boolean) as string[];
 
     if (missing.length) { setError(`Required: ${missing.join(", ")}.`); return; }
@@ -86,11 +83,10 @@ export function Users() {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
-            email:    fEmail.trim(),
-            name:     `${fFirst} ${fLast}`.trim(),
-            phone:    fPhone.trim() || null,
-            roleId:   fRole,
-            branchId,
+            email:     fEmail.trim(),
+            name:      `${fFirst} ${fLast}`.trim(),
+            roleId:    fRole,
+            branchIds: fBranches,
           }),
         },
       );
@@ -174,22 +170,25 @@ export function Users() {
         <div className="space-y-4">
           <p className="text-xs text-gray-500">
             The user receives an email invitation and sets their own password. Their role
-            and assigned center are fixed here and cannot be changed by them.
+            and assigned centers are fixed here and cannot be changed by them.
           </p>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="grid grid-cols-2 gap-4">
             <SInput label="First Name" value={fFirst} onChange={setFFirst} required />
             <SInput label="Last Name"  value={fLast}  onChange={setFLast} />
             <SInput label="Email"      value={fEmail} onChange={setFEmail} required type="email" />
-            <SInput label="Mobile"     value={fPhone} onChange={setFPhone} required />
             <SSelect
               label="Role" required value={fRole} onChange={setFRole}
               options={[{ value: "", label: "Select Role" },
                         ...roleOptions.map(r => ({ value: r.id, label: r.name }))]}
             />
-            <SSelect
-              label="Assigned Center" required value={fBranch} onChange={setFBranch}
-              options={["Select Center", ...branches.map(b => b.name)]}
+            <SMultiCheck
+              label="Assigned Centers" required
+              className="col-span-2"
+              options={branches.map(b => ({ value: b.id, label: b.name }))}
+              selected={fBranches}
+              onChange={setFBranches}
+              emptyText="No centers available"
             />
           </div>
           <div className="flex gap-3 pt-3 border-t border-gray-100">
