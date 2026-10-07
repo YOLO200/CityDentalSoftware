@@ -58,7 +58,7 @@ export const DURATIONS = [
   { label: "2 hours",   mins: 120 },
 ];
 
-// Mirrors the appointment_status_type enum (migration 011), all 10 values.
+// Mirrors the appointment_status_type enum, all 10 values.
 export const ALL_STATUSES = [
   "Scheduled", "Confirmed", "Pending", "Arrived", "In Waiting",
   "In Treatment", "Completed", "Cancelled", "No-show", "Rescheduled",

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Plus, Bell, RefreshCw, MoreVertical } from "lucide-react";
 // Demo-only tables are served from memory; everything else hits Supabase.
-import { db as supabase } from "../../../lib/demoTables";
+import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import { useProfiles, useBranches } from "../admin/primitives";
 import {

@@ -1,6 +1,6 @@
 /**
  * Must stay in sync with the appointment_status_type enum in Postgres
- * (migration 011). "Pending" is DB-only in origin — the Dashboard's
+ * "Pending" is DB-only in origin — the Dashboard's
  * unconfirmed-appointments alert filters on it and the seed writes it — but it
  * is a real value that comes back from queries, so it belongs here.
  */

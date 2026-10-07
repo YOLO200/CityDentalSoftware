@@ -35,23 +35,65 @@ export function SetupProfile() {
   const [gender, setGender] = useState("male");
 
   // Step 2 — Professional Info
-  const [role, setRole] = useState("Doctor");
+  // Display-only: set by the admin at invite time, never chosen here.
+  const [role, setRole] = useState("");
   const [specialization, setSpecialization] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
   const [experience, setExperience] = useState("");
   const [clinicLocation, setClinicLocation] = useState("");
+  const [branchId, setBranchId] = useState("");
+  const [branchOptions, setBranchOptions] = useState<{ id: string; name: string }[]>([]);
   const [consultationHours, setConsultationHours] = useState("");
 
   // Step 3 — Working Hours
   const [workingHours, setWorkingHours] = useState<WorkingDay[]>(defaultWorkingHours);
 
-  // Pre-populate name and phone from signup metadata
+  // Pre-populate from what the admin already entered on the invite, so the
+  // user is confirming details rather than retyping them.
   useEffect(() => {
     if (!user) return;
-    const nameParts = (user.name ?? "").trim().split(" ");
-    setFirstName(nameParts[0] ?? "");
-    setLastName(nameParts.slice(1).join(" "));
-    setPhone(user.phone ?? "");
+    let cancelled = false;
+
+    supabase
+      .from("profiles")
+      .select("name, phone, role, branch_id")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const nameParts = ((data.name as string) ?? user.name ?? "").trim().split(" ");
+        setFirstName(nameParts[0] ?? "");
+        setLastName(nameParts.slice(1).join(" "));
+        setPhone((data.phone as string) ?? user.phone ?? "");
+        setRole((data.role as string) ?? "");
+        // The admin already chose the branch at invite time; keep it.
+        if (data.branch_id) setBranchId(data.branch_id as string);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Branch options come from the onboarding_branches() RPC, not a plain
+  // branches query: RLS hides branches from a user who has none yet, so
+  // a direct select would return an empty list to exactly the people who need
+  // to pick one. The RPC stops returning rows once onboarding is finished.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    supabase.rpc("onboarding_branches").then(({ data, error }) => {
+      if (cancelled || error) return;
+      const rows = (data as { id: string; name: string }[] | null) ?? [];
+      setBranchOptions(rows);
+      // Only one center: preselect it rather than making it a required choice.
+      if (rows.length === 1) setBranchId(rows[0].id);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const updateWorkingDay = (index: number, field: keyof WorkingDay, value: string | boolean) => {
@@ -74,8 +116,26 @@ export function SetupProfile() {
   };
 
   const handleNext = () => {
-    if (step === 1 && !firstName.trim()) {
-      setStepError("First name is required.");
+    if (step === 1) {
+      const missing = [
+        !firstName.trim() && "First name",
+        !lastName.trim() && "Last name",
+        !phone.trim() && "Phone number",
+        !dateOfBirth && "Date of birth",
+      ].filter(Boolean) as string[];
+      if (missing.length) {
+        setStepError(`Required: ${missing.join(", ")}.`);
+        return;
+      }
+    }
+    // Caught here as well as on save, so the user is stopped on the step that
+    // actually holds the field rather than at the end of the wizard.
+    if (step === 2 && !branchId) {
+      setStepError(
+        branchOptions.length === 0
+          ? "No centers are available. An administrator must assign you to one."
+          : "Assigned center is required."
+      );
       return;
     }
     setStepError(null);
@@ -84,16 +144,29 @@ export function SetupProfile() {
 
   const handleComplete = async () => {
     if (!user) return;
+
+    // Mirrors the profiles_complete_requires_branch constraint. Checked
+    // here so the user gets a pointed message instead of a raw constraint error.
+    if (!branchId) {
+      setSaveError(
+        branchOptions.length === 0
+          ? "You cannot finish setup until an administrator assigns you to a center."
+          : "Please select an assigned center before finishing."
+      );
+      setStep(2);
+      return;
+    }
+
     setIsSaving(true);
     setSaveError(null);
 
     const { error: profileError } = await supabase.from("profiles").update({
+      branch_id: branchId,
       name: `${firstName} ${lastName}`.trim(),
       phone: phone || null,
       address: address || null,
       date_of_birth: dateOfBirth || null,
       gender: gender || null,
-      role: role || null,
       specialization: specialization || null,
       license_number: licenseNumber || null,
       experience_years: experience ? parseInt(experience) : null,
@@ -210,11 +283,13 @@ export function SetupProfile() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-foreground">Last Name</label>
+                  <label className="text-sm font-medium text-foreground">
+                    Last Name<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <input
                     type="text"
                     value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
+                    onChange={(e) => { setLastName(e.target.value); setStepError(null); }}
                     placeholder="Smith"
                     className={fieldClass}
                   />
@@ -229,11 +304,13 @@ export function SetupProfile() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-foreground">Phone Number</label>
+                  <label className="text-sm font-medium text-foreground">
+                    Phone Number<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => { setPhone(e.target.value); setStepError(null); }}
                     placeholder="+91 98765-43210"
                     className={fieldClass}
                   />
@@ -249,7 +326,9 @@ export function SetupProfile() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-foreground">Date of Birth</label>
+                  <label className="text-sm font-medium text-foreground">
+                    Date of Birth<span className="text-red-500 ml-0.5">*</span>
+                  </label>
                   <input
                     type="date"
                     value={dateOfBirth}
@@ -280,17 +359,20 @@ export function SetupProfile() {
                 Professional Information
               </h2>
               <div className="grid grid-cols-2 gap-5">
+                {/* Read-only. This used to be a dropdown including "Admin",
+                    which let anyone self-assign their own role during setup.
+                    The role is now fixed by whoever issued the invite. */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-foreground">Role</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className={fieldClass}
-                  >
-                    <option value="Doctor">Doctor</option>
-                    <option value="Staff">Staff</option>
-                    <option value="Admin">Admin</option>
-                  </select>
+                  <input
+                    type="text"
+                    value={role || "Assigned by your administrator"}
+                    disabled
+                    className={`${fieldClass} opacity-60 cursor-not-allowed`}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Set by your administrator when they invited you.
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-foreground">Specialization</label>
@@ -322,6 +404,53 @@ export function SetupProfile() {
                     placeholder="e.g. 8"
                     className={fieldClass}
                   />
+                </div>
+                {/* Assigned branch. Required: a profile cannot be marked
+                    complete without one, and it determines
+                    which patients this user can see at all. */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-foreground">
+                    Assigned Center <span className="text-red-500">*</span>
+                  </label>
+                  {/* Read-only once the admin has assigned one. The branch
+                      decides which patients this user can see, so it
+                      is an access-control setting, not a preference. */}
+                  {branchId ? (
+                    <>
+                      <input
+                        type="text"
+                        value={
+                          branchOptions.find((b) => b.id === branchId)?.name ?? "Assigned"
+                        }
+                        disabled
+                        className={`${fieldClass} opacity-60 cursor-not-allowed`}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Set by your administrator when they invited you.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <select
+                        value={branchId}
+                        onChange={(e) => { setBranchId(e.target.value); setStepError(null); }}
+                        className={fieldClass}
+                      >
+                        <option value="">
+                          {branchOptions.length === 0 ? "No centers available" : "Select a center"}
+                        </option>
+                        {branchOptions.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                      {branchOptions.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          No centers are set up yet. Ask an administrator to create one and
+                          assign you to it.
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-foreground">Clinic Location</label>

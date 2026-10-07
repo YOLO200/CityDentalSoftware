@@ -5,7 +5,6 @@ import {
   Edit,
   Phone,
   Mail,
-  Languages,
   Printer,
   Share2,
   MoreVertical,
@@ -15,15 +14,17 @@ import {
   MessageSquare,
   FileText,
   Pencil,
-  Check,
-  Play,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../context/AuthContext";
+import { useBranch } from "../context/BranchContext";
+import { NoteModal, type NoteType, type PatientNote } from "./patient/NoteModal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface PatientData {
   id: string;
+  patient_code: string | null;
   first_name: string;
   last_name: string;
   gender: string | null;
@@ -46,31 +47,29 @@ interface PatientData {
   policy_number: string | null;
   is_active: boolean;
   created_at: string;
+  branch_id: string | null;
+  /** Embedded from the branches FK; null when the patient has no branch. */
+  branches: { name: string } | null;
 }
 
-// ─── Mock visit data ──────────────────────────────────────────────────────────
+interface PrescriptionRow {
+  id: string;
+  drug_name: string | null;
+  dosage: string | null;
+  duration: string | null;
+  quantity: string | number | null;
+  instructions: string | null;
+  date: string | null;
+}
 
-const MOCK_VISIT = {
-  date: "9 Apr, 2026",
-  chiefComplaint: "Scaling offer 1250 rs.\nPrivyr lead... Krishna",
-  treatmentPlan: [
-    { treatment: "Check Up / Consultation", charges: 500, grossAmt: 500, disc: 500, netAmt: 0, gst: 0, total: 0, note: "" },
-    { treatment: "Scaling(minor calculus)", charges: 1250, grossAmt: 1250, disc: 0, netAmt: 1250, gst: 0, total: 1250, note: "Offer" },
-  ],
-  treatmentDone: [
-    { treatment: "Check Up / Consultation", charges: 500, grossAmt: 500, disc: 500, netAmt: 0, gst: 0, total: 0 },
-    { treatment: "Scaling(minor calculus)", charges: 1250, grossAmt: 1250, disc: 0, netAmt: 1250, gst: 0, total: 1250 },
-  ],
-  prescription: [
-    { drug: "Vantej paste (Gylcerin,Silica,Calcium sodium phosphosilicate Sodium lauryl sulphate)", dosage: "Morning 1, Night 1", duration: "21 Days", qty: "", instruction: "brush twice a day" },
-    { drug: "Zerodol P (Aceclofenac (100mg) +Paracetamol (325mg) (Analgesic)", dosage: "Morning 1, Noon 0, Night 1", duration: "3 Days", qty: "6", instruction: "Daily Morning 1 Night 1, After Food" },
-    { drug: "Hexigel (Chlorhexidine Gluconate (1% w/w) (Antiinflammatory Gel)", dosage: "Morning 1, Noon 1, Night 1", duration: "7 Days", qty: "1", instruction: "daily use for 3-4 times on affected site" },
-  ],
-  receipts: [
-    { voucher: "18419", mode: "Wallet", amount: 1187.50, notes: "dr palak", doctor: "Palak-City Dental Hospital" },
-    { voucher: "18418", mode: "Wallet", amount: 62.50, notes: "dr cdh", doctor: "City Dental Hospital" },
-  ],
-};
+interface ReceiptRow {
+  id: string;
+  receipt_number: string | null;
+  mode: string | null;
+  amount: number | null;
+  notes: string | null;
+  date: string | null;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -128,23 +127,59 @@ export function PatientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [patient, setPatient] = useState<PatientData | null>(null);
+  const [prescriptions, setPrescriptions] = useState<PrescriptionRow[]>([]);
+  const [receipts, setReceipts] = useState<ReceiptRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<MainTab>("visits");
   const [socialOpen, setSocialOpen] = useState(true);
   const [internalOpen, setInternalOpen] = useState(true);
   const [addressOpen, setAddressOpen] = useState(false);
+  const [notes, setNotes] = useState<PatientNote[]>([]);
+  const [noteModal, setNoteModal] = useState<NoteType | null>(null);
+  const [savingBranch, setSavingBranch] = useState(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { branches } = useBranch();
 
   useEffect(() => {
     if (!id) return;
-    supabase
-      .from("patients")
-      .select("*")
-      .eq("id", id)
-      .single()
-      .then(({ data }) => {
-        setPatient(data as PatientData);
-        setIsLoading(false);
-      });
+    let cancelled = false;
+
+    (async () => {
+      const [patientRes, rxRes, receiptRes, notesRes] = await Promise.all([
+        supabase
+          .from("patients")
+          .select("*, branches(name)")
+          .eq("id", id)
+          .single(),
+        supabase
+          .from("prescriptions")
+          .select("id, drug_name, dosage, duration, quantity, instructions, date")
+          .eq("patient_id", id)
+          .order("date", { ascending: false }),
+        supabase
+          .from("receipts")
+          .select("id, receipt_number, mode, amount, notes, date")
+          .eq("patient_id", id)
+          .order("date", { ascending: false }),
+        supabase
+          .from("patient_notes")
+          .select("id, patient_id, note_type, note_date, note, created_at")
+          .eq("patient_id", id)
+          .order("note_date", { ascending: false }),
+      ]);
+
+      if (cancelled) return;
+      setPatient(patientRes.data as PatientData | null);
+      setPrescriptions((rxRes.data as PrescriptionRow[] | null) ?? []);
+      setReceipts((receiptRes.data as ReceiptRow[] | null) ?? []);
+      setNotes((notesRes.data as PatientNote[] | null) ?? []);
+      setIsLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (isLoading) {
@@ -167,6 +202,109 @@ export function PatientDetail() {
   const genderLabel = capitalize(patient.gender);
   const ageStr = formatAge(patient.date_of_birth);
   const initials = `${patient.first_name[0] ?? ""}${patient.last_name[0] ?? ""}`.toUpperCase();
+  const receiptsTotal = receipts.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+
+  const formatDate = (d: string | null) =>
+    d
+      ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      : "—";
+
+  const handleBranchChange = async (nextBranchId: string) => {
+    if (!nextBranchId || nextBranchId === patient.branch_id) return;
+    setSavingBranch(true);
+    setBranchError(null);
+
+    const { data, error } = await supabase
+      .from("patients")
+      .update({ branch_id: nextBranchId })
+      .eq("id", patient.id)
+      .select("branch_id, branches(name)")
+      .single();
+
+    if (error) {
+      setBranchError(error.message);
+      setSavingBranch(false);
+      return;
+    }
+
+    // An empty result means the row updated but RLS now hides it — the patient
+    // was moved into a branch this user cannot read. Say so plainly instead of
+    // leaving a stale branch on screen.
+    if (!data) {
+      setBranchError("Moved, but you no longer have access to this patient's branch.");
+      setSavingBranch(false);
+      return;
+    }
+
+    // PostgREST returns an object for a many-to-one embed, but the client types
+    // it as an array. Accept either rather than casting blind.
+    const row = data as unknown as {
+      branch_id: string | null;
+      branches: { name: string } | { name: string }[] | null;
+    };
+    const branch = Array.isArray(row.branches) ? (row.branches[0] ?? null) : row.branches;
+
+    setPatient((prev) =>
+      prev ? { ...prev, branch_id: row.branch_id, branches: branch } : prev
+    );
+    setSavingBranch(false);
+  };
+
+  // ── Notes panels ────────────────────────────────────────────────────────────
+  // Social and Internal notes are the same panel over a different note_type.
+  // Keep "+" a sibling of the collapse toggle, never nested inside it: a
+  // <button> within a <button> is invalid HTML and swallows the click.
+
+  const renderNotesPanel = (
+    type: NoteType,
+    title: string,
+    open: boolean,
+    setOpen: React.Dispatch<React.SetStateAction<boolean>>,
+  ) => {
+    const rows = notes.filter((n) => n.note_type === type);
+    return (
+      <div className="px-4 py-3 border-b border-gray-100">
+        <div className="flex w-full items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[#1e2d5a]">{title}</span>
+            <button
+              onClick={() => setNoteModal(type)}
+              aria-label={`Add ${title.toLowerCase()}`}
+              className="rounded-full bg-gray-100 p-0.5 hover:bg-gray-200"
+            >
+              <Plus className="h-3 w-3 text-gray-500" />
+            </button>
+          </div>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+            aria-expanded={open}
+          >
+            {open ? (
+              <ChevronUp className="h-4 w-4 text-gray-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-gray-400" />
+            )}
+          </button>
+        </div>
+
+        {open && (
+          rows.length === 0 ? (
+            <div className="mt-3 text-xs text-gray-400">No notes added yet.</div>
+          ) : (
+            <ul className="mt-3 space-y-2.5">
+              {rows.map((n) => (
+                <li key={n.id} className="text-xs">
+                  <div className="text-gray-400">{formatDate(n.note_date)}</div>
+                  <div className="whitespace-pre-line text-gray-700">{n.note}</div>
+                </li>
+              ))}
+            </ul>
+          )
+        )}
+      </div>
+    );
+  };
 
   // ── Left panel ──────────────────────────────────────────────────────────────
 
@@ -187,7 +325,17 @@ export function PatientDetail() {
                 {[genderLabel, ageStr].filter(Boolean).join(" , ")}
               </div>
             )}
-            <div className="text-xs text-gray-400 mt-0.5">[Virani chowk]</div>
+            {/* Rendered as `#000000 [Branch Name]`. Either half can be absent,
+                so the space between them is only emitted when both are present. */}
+            {(patient.branches?.name || patient.patient_code) && (
+              <div className="text-xs text-gray-400 mt-0.5">
+                {patient.patient_code && (
+                  <span className="font-medium text-gray-500">#{patient.patient_code}</span>
+                )}
+                {patient.patient_code && patient.branches?.name ? " " : ""}
+                {patient.branches?.name ? `[${patient.branches.name}]` : ""}
+              </div>
+            )}
           </div>
         </div>
 
@@ -235,126 +383,68 @@ export function PatientDetail() {
             <span className="truncate">{patient.email}</span>
           </div>
         )}
-        <div className="flex items-center gap-2 text-xs text-gray-600">
-          <Languages className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-          <span>English</span>
-        </div>
+        {!patient.phone && !patient.email && (
+          <div className="text-xs text-gray-400">No contact details recorded.</div>
+        )}
       </div>
 
-      {/* Relationship */}
-      <div className="px-4 py-3 border-b border-gray-100">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-[#1e2d5a]">Relationship</span>
-          <span className="text-xs text-gray-400">
-            {patient.first_visit_date
-              ? new Date(patient.first_visit_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-              : "—"}
-          </span>
-        </div>
-        <div className="space-y-1 text-xs text-gray-500">
-          <div>
-            <span className="text-gray-400">Source Type</span>
-            <div className="text-gray-700">Instagram</div>
-          </div>
-          <div className="flex justify-between mt-1.5">
-            <div>
-              <div className="text-gray-400">Group</div>
-              <div className="text-gray-700">None</div>
+      {/* Registration — only the fields that exist on the patients table.
+          Source type / group / ratecard / membership / family were hardcoded
+          placeholders with no backing column; removed rather than faked. */}
+      {
+        <div className="px-4 py-3 border-b border-gray-100">
+          <div className="text-sm font-semibold text-[#1e2d5a] mb-2">Registration</div>
+          <div className="space-y-1.5 text-xs">
+            {patient.patient_code && (
+              <div className="flex justify-between">
+                <span className="text-gray-400">Patient ID</span>
+                <span className="text-gray-700 font-medium">#{patient.patient_code}</span>
+              </div>
+            )}
+            {/* Centre is editable: moving a patient between branches moves who
+                can see them, so this is an access-control change, not a label
+                edit. RLS re-checks it server-side. */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400">Center</span>
+              <select
+                value={patient.branch_id ?? ""}
+                disabled={savingBranch}
+                onChange={(e) => handleBranchChange(e.target.value)}
+                aria-label="Patient's branch"
+                className="max-w-[60%] truncate rounded border border-gray-200 bg-white px-1.5 py-1 text-right text-xs text-gray-700 outline-none hover:border-gray-300 focus:border-indigo-400 disabled:opacity-50"
+              >
+                {patient.branch_id === null && <option value="">Unassigned</option>}
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="text-right">
-              <div className="text-gray-400">Ratecard</div>
-              <div className="text-gray-700">Standard</div>
-            </div>
-          </div>
-          <div className="flex justify-between mt-1.5">
-            <div>
-              <div className="text-gray-400">Membership</div>
-              <div className="text-gray-700">—</div>
-            </div>
-            <div className="text-right">
-              <div className="text-gray-400">Family</div>
-              <div className="text-gray-700">—</div>
-            </div>
-          </div>
-          <div className="mt-1.5">
-            <div className="text-gray-400">Reviews</div>
-          </div>
-          <div className="flex gap-2 mt-1">
-            {/* Google icon */}
-            <button className="text-gray-400 hover:text-gray-600">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-              </svg>
-            </button>
-            {/* Instagram icon */}
-            <button className="text-gray-400 hover:text-gray-600">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-              </svg>
-            </button>
+            {branchError && (
+              <div className="rounded bg-red-50 px-2 py-1 text-[11px] text-red-600">
+                {branchError}
+              </div>
+            )}
+            {patient.first_visit_date && (
+              <div className="flex justify-between">
+                <span className="text-gray-400">Patient since</span>
+                <span className="text-gray-700">
+                  {new Date(patient.first_visit_date).toLocaleDateString("en-GB", {
+                    day: "numeric", month: "short", year: "numeric",
+                  })}
+                </span>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      }
 
       {/* Social Notes */}
-      <div className="px-4 py-3 border-b border-gray-100">
-        <button
-          onClick={() => setSocialOpen((v) => !v)}
-          className="flex w-full items-center justify-between"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[#1e2d5a]">Social Notes</span>
-            <button className="rounded-full bg-gray-100 p-0.5 hover:bg-gray-200">
-              <Plus className="h-3 w-3 text-gray-500" />
-            </button>
-          </div>
-          {socialOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-        </button>
-        {socialOpen && (
-          <div className="mt-3 flex flex-col items-center text-center">
-            <div className="w-20 h-20 opacity-60">
-              <svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                <circle cx="45" cy="35" r="18" fill="#e0e7ff" />
-                <rect x="20" y="55" width="50" height="30" rx="8" fill="#e0e7ff" />
-                <circle cx="80" cy="40" r="14" fill="#c7d2fe" />
-                <rect x="62" y="58" width="38" height="24" rx="7" fill="#c7d2fe" />
-              </svg>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Know your patient better.</p>
-            <p className="text-xs text-gray-500">Nurture a bond.</p>
-          </div>
-        )}
-      </div>
+      {renderNotesPanel("social", "Social Notes", socialOpen, setSocialOpen)}
 
       {/* Internal Notes */}
-      <div className="px-4 py-3 border-b border-gray-100">
-        <button
-          onClick={() => setInternalOpen((v) => !v)}
-          className="flex w-full items-center justify-between"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[#1e2d5a]">Internal Notes</span>
-            <button className="rounded-full bg-gray-100 p-0.5 hover:bg-gray-200">
-              <Plus className="h-3 w-3 text-gray-500" />
-            </button>
-          </div>
-          {internalOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-        </button>
-        {internalOpen && (
-          <div className="mt-3 flex flex-col items-center text-center">
-            <div className="w-20 h-20 opacity-60">
-              <svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                <circle cx="45" cy="35" r="18" fill="#fde68a" />
-                <rect x="20" y="55" width="50" height="30" rx="8" fill="#fde68a" />
-                <circle cx="80" cy="40" r="14" fill="#fcd34d" />
-                <rect x="62" y="58" width="38" height="24" rx="7" fill="#fcd34d" />
-              </svg>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Know your patient's preferences.</p>
-            <p className="text-xs text-gray-500">Serve them better.</p>
-          </div>
-        )}
-      </div>
+      {renderNotesPanel("internal", "Internal Notes", internalOpen, setInternalOpen)}
 
       {/* Address */}
       <div className="px-4 py-3 border-b border-gray-100">
@@ -386,284 +476,179 @@ export function PatientDetail() {
 
   const topInfo = (
     <div className="flex gap-3 border-b border-gray-200 bg-white px-5 py-3">
-      {/* Medical Information */}
+      {/* Medical Information — renders only what the patient record holds. */}
       <div className="flex-1 border border-gray-200 rounded-lg p-3 text-xs">
         <div className="flex items-center justify-between mb-2">
-          <span className="font-semibold text-gray-700">
-            Medical Information{" "}
-            <span className="font-normal text-gray-400">
-              [{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}]
-            </span>
-          </span>
+          <span className="font-semibold text-gray-700">Medical Information</span>
           <div className="flex items-center gap-2">
-            <span className="text-gray-500">Blood Group: <span className="font-semibold">{patient.blood_group || ""}</span></span>
+            {patient.blood_group && (
+              <span className="text-gray-500">
+                Blood Group: <span className="font-semibold">{patient.blood_group}</span>
+              </span>
+            )}
             <Pencil className="h-3.5 w-3.5 text-gray-400 cursor-pointer" />
           </div>
         </div>
-        <div className="flex gap-6 text-[#3b3f8c]">
-          <button className="hover:underline">History</button>
-          <button className="hover:underline">Dental</button>
-          <button className="hover:underline">Allergies</button>
-          <button className="hover:underline">Habits</button>
+        <div className="space-y-1 text-gray-600">
+          {patient.medical_conditions && (
+            <div><span className="text-gray-400">History: </span>{patient.medical_conditions}</div>
+          )}
+          {patient.allergies && patient.allergies.length > 0 && (
+            <div><span className="text-gray-400">Allergies: </span>{patient.allergies.join(", ")}</div>
+          )}
+          {patient.current_medications && (
+            <div><span className="text-gray-400">Medications: </span>{patient.current_medications}</div>
+          )}
+          {!patient.blood_group &&
+            !patient.medical_conditions &&
+            !(patient.allergies && patient.allergies.length > 0) &&
+            !patient.current_medications && (
+              <div className="text-gray-400">No medical information recorded.</div>
+            )}
         </div>
       </div>
 
-      {/* Contact */}
+      {/* Emergency contact */}
       <div className="w-52 border border-gray-200 rounded-lg p-3 text-xs">
         <div className="flex items-center justify-between mb-2">
-          <span className="font-semibold text-gray-700">Contact</span>
+          <span className="font-semibold text-gray-700">Emergency Contact</span>
           <Pencil className="h-3.5 w-3.5 text-gray-400 cursor-pointer" />
         </div>
-        <div className="space-y-1 text-gray-500">
-          <div>
-            <span className="font-medium text-gray-600">Gen. Practitioner:</span>
-          </div>
-          <div>
-            <span className="font-medium text-gray-600">Emergency:</span>{" "}
-            {patient.emergency_contact_name ? `${patient.emergency_contact_name} ${patient.emergency_contact_phone ?? ""}` : ""}
-          </div>
+        <div className="text-gray-600">
+          {patient.emergency_contact_name ? (
+            <>
+              <div>{patient.emergency_contact_name}</div>
+              {patient.emergency_contact_phone && (
+                <div className="text-gray-500">{patient.emergency_contact_phone}</div>
+              )}
+            </>
+          ) : (
+            <span className="text-gray-400">Not recorded.</span>
+          )}
         </div>
       </div>
 
-      {/* Payment Due */}
+      {/* Received to date — summed from this patient's real receipt rows.
+          There is no invoices/billing table yet, so amount *due* cannot be
+          derived; showing a total received instead of a fabricated due. */}
       <div className="w-52 border border-gray-200 rounded-lg p-3 text-xs">
-        <div className="text-gray-500 mb-1">Payment Due</div>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-base font-semibold text-gray-700">INR 0.00</span>
-          <button className="text-[#3b3f8c] hover:underline">Receive</button>
-          <button className="text-[#3b3f8c] hover:underline">Refund</button>
+        <div className="text-gray-500 mb-1">Received to Date</div>
+        <div className="text-base font-semibold text-gray-700 mb-2">
+          {receiptsTotal.toLocaleString("en-IN", {
+            style: "currency", currency: "INR", minimumFractionDigits: 2,
+          })}
         </div>
-        <button className="text-[#3b3f8c] hover:underline block mb-1">Send Payment Link</button>
-        <div className="text-gray-400">Unbilled INR 1,250.00</div>
+        <div className="text-gray-400">
+          {receipts.length === 0
+            ? "No receipts recorded."
+            : `${receipts.length} receipt${receipts.length === 1 ? "" : "s"}`}
+        </div>
       </div>
     </div>
   );
 
   // ── Visits tab ──────────────────────────────────────────────────────────────
+  //
+  // Clinical notes, treatment plan and treatment-done tables were removed: they
+  // were hardcoded sample rows, and no clinical_notes / treatment_plans /
+  // treatments table exists to back them. Prescriptions and receipts are real
+  // and render per-patient below.
 
   const visitsTab = (
     <div className="px-5 py-4 space-y-4">
-      {/* Date header */}
-      <div className="flex items-center gap-3">
-        <span className="rounded bg-orange-400 px-3 py-1 text-xs font-semibold text-white">
-          {MOCK_VISIT.date}
-        </span>
-        <Printer className="h-4 w-4 text-gray-400 cursor-pointer" />
-        <button className="ml-auto text-xs text-[#3b3f8c] hover:underline">Expand latest visit only</button>
-      </div>
-
-      {/* Clinical Note */}
-      <SectionHeader color="bg-orange-400" title="CLINICAL NOTE" extra={<Printer className="ml-auto h-3.5 w-3.5 text-gray-400 cursor-pointer" />} />
-      <div className="overflow-x-auto rounded border border-gray-100">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-              {["#", "Surface", "Pop", "TOP", "Pulp Sensibility", "Conclusion", "Files"].map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={7} className="px-3 py-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-green-600 text-[10px]">+</span>
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-700">Chief Complaint</div>
-                    <div className="text-gray-500 whitespace-pre-line">{MOCK_VISIT.chiefComplaint}</div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Treatment Plan */}
-      <SectionHeader color="bg-orange-400" title="TREATMENT PLAN" extra={<Printer className="ml-auto h-3.5 w-3.5 text-gray-400 cursor-pointer" />} />
-      <div className="overflow-x-auto rounded border border-gray-100">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-              {["Treatment", "Charges", "Gross Amt", "Disc", "Net Amt", "GST", "Total", "Note", "Files"].map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-t border-gray-100">
-              <td className="px-3 py-1.5 text-gray-500 italic text-[11px]" colSpan={9}>Treatment Plan A</td>
-            </tr>
-            {MOCK_VISIT.treatmentPlan.map((row, i) => (
-              <tr key={i} className="border-t border-gray-100 bg-orange-50/30">
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <Play className="h-2 w-2 text-gray-500" />
-                    </div>
-                    {row.treatment}
-                  </div>
-                </td>
-                <td className="px-3 py-2">{row.charges.toFixed(2)} × 1</td>
-                <td className="px-3 py-2">{row.grossAmt.toFixed(2)}</td>
-                <td className="px-3 py-2">{row.disc.toFixed(2)}</td>
-                <td className="px-3 py-2">{row.netAmt.toFixed(2)}</td>
-                <td className="px-3 py-2">{row.gst.toFixed(2)}</td>
-                <td className="px-3 py-2">{row.total.toFixed(2)}</td>
-                <td className="px-3 py-2 text-gray-400">{row.note}</td>
-                <td className="px-3 py-2" />
-              </tr>
-            ))}
-            <tr className="border-t border-gray-200 bg-gray-50 font-semibold">
-              <td className="px-3 py-2 text-right" colSpan={2}>Total</td>
-              <td className="px-3 py-2">1,750.00</td>
-              <td className="px-3 py-2">500.00</td>
-              <td className="px-3 py-2">1,250.00</td>
-              <td className="px-3 py-2">0.00</td>
-              <td className="px-3 py-2">1,250.00</td>
-              <td colSpan={2} />
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Treatment Done */}
-      <SectionHeader color="bg-green-500" title="TREATMENT DONE" extra={<Printer className="ml-auto h-3.5 w-3.5 text-gray-400 cursor-pointer" />} />
-      <div className="overflow-x-auto rounded border border-gray-100">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-              {["Treatment", "Charges", "Gross Amt", "Disc", "Net Amt", "GST", "Total", "Bill", "Files"].map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {MOCK_VISIT.treatmentDone.map((row, i) => (
-              <tr key={i} className="border-t border-gray-100">
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                      <Check className="h-2.5 w-2.5 text-gray-500" />
-                    </div>
-                    <div className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                      <Play className="h-2 w-2 text-gray-500" />
-                    </div>
-                    {row.treatment}
-                  </div>
-                </td>
-                <td className="px-3 py-2">{row.charges.toFixed(2)} × 1</td>
-                <td className="px-3 py-2">{row.grossAmt.toFixed(2)}</td>
-                <td className="px-3 py-2">{row.disc.toFixed(2)}</td>
-                <td className="px-3 py-2">{row.netAmt.toFixed(2)}</td>
-                <td className="px-3 py-2">{row.gst.toFixed(2)}</td>
-                <td className="px-3 py-2">{row.total.toFixed(2)}</td>
-                <td className="px-3 py-2">
-                  <input type="checkbox" className="accent-[#3b3f8c]" />
-                </td>
-                <td className="px-3 py-2" />
-              </tr>
-            ))}
-            <tr className="border-t border-gray-200 bg-gray-50 font-semibold">
-              <td className="px-3 py-2 text-right" colSpan={2}>Total</td>
-              <td className="px-3 py-2">1,750.00</td>
-              <td className="px-3 py-2">500.00</td>
-              <td className="px-3 py-2">1,250.00</td>
-              <td className="px-3 py-2">0.00</td>
-              <td className="px-3 py-2">1,250.00</td>
-              <td colSpan={2} />
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Prescription */}
-      <SectionHeader color="bg-blue-500" title="PRESCRIPTION" extra={
-        <div className="ml-auto flex gap-2">
-          <button className="rounded p-1 hover:bg-gray-100"><Share2 className="h-3.5 w-3.5 text-gray-400" /></button>
-          <button className="rounded p-1 hover:bg-gray-100"><Printer className="h-3.5 w-3.5 text-gray-400" /></button>
+      {/* Prescriptions */}
+      <SectionHeader
+        color="bg-blue-500"
+        title="PRESCRIPTION"
+        extra={
+          <div className="ml-auto flex gap-2">
+            <button className="rounded p-1 hover:bg-gray-100">
+              <Share2 className="h-3.5 w-3.5 text-gray-400" />
+            </button>
+            <button className="rounded p-1 hover:bg-gray-100">
+              <Printer className="h-3.5 w-3.5 text-gray-400" />
+            </button>
+          </div>
+        }
+      />
+      {prescriptions.length === 0 ? (
+        <div className="rounded border border-gray-100 px-3 py-6 text-center text-xs text-gray-400">
+          No prescriptions recorded for this patient.
         </div>
-      } />
-      <div className="overflow-x-auto rounded border border-gray-100">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-              {["Drug", "Dosage", "Duration", "Total Qty", "Instruction"].map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {MOCK_VISIT.prescription.map((row, i) => (
-              <tr key={i} className="border-t border-gray-100">
-                <td className="px-3 py-2 max-w-[220px]">
-                  <div className="flex items-start gap-2">
-                    <div className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-gray-400 text-[9px]">Rx</span>
-                    </div>
-                    <span className="leading-tight">{row.drug}</span>
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-gray-600">{row.dosage}</td>
-                <td className="px-3 py-2">{row.duration}</td>
-                <td className="px-3 py-2">{row.qty}</td>
-                <td className="px-3 py-2 text-gray-600">{row.instruction}</td>
+      ) : (
+        <div className="overflow-x-auto rounded border border-gray-100">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-500">
+              <tr>
+                {["Date", "Drug", "Dosage", "Duration", "Total Qty", "Instruction"].map((h) => (
+                  <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Receipts */}
-      <SectionHeader color="bg-green-500" title="RECEIPTS, REFUNDS, CREDIT NOTES" />
-      <div className="overflow-x-auto rounded border border-gray-100">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-              {["Voucher #", "Mode", "Amount", "Particulars", "Doctor"].map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-t border-gray-100">
-              <td className="px-3 py-1.5 text-green-600 italic text-[11px]" colSpan={5}>Receipts</td>
-            </tr>
-            {MOCK_VISIT.receipts.map((row, i) => (
-              <>
-                <tr key={`r-${i}`} className="border-t border-gray-100">
-                  <td className="px-3 py-2">{row.voucher}</td>
-                  <td className="px-3 py-2">{row.mode}</td>
-                  <td className="px-3 py-2">{row.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                  <td className="px-3 py-2" />
-                  <td className="px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span>{row.doctor}</span>
-                      <div className="flex gap-1">
-                        <Share2 className="h-3.5 w-3.5 text-gray-400 cursor-pointer" />
-                        <Printer className="h-3.5 w-3.5 text-gray-400 cursor-pointer" />
-                        <MoreVertical className="h-3.5 w-3.5 text-gray-400 cursor-pointer" />
+            </thead>
+            <tbody>
+              {prescriptions.map((row) => (
+                <tr key={row.id} className="border-t border-gray-100">
+                  <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDate(row.date)}</td>
+                  <td className="px-3 py-2 max-w-[220px]">
+                    <div className="flex items-start gap-2">
+                      <div className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-gray-400 text-[9px]">Rx</span>
                       </div>
+                      <span className="leading-tight">{row.drug_name ?? "—"}</span>
                     </div>
                   </td>
+                  <td className="px-3 py-2 text-gray-600">{row.dosage ?? "—"}</td>
+                  <td className="px-3 py-2">{row.duration ?? "—"}</td>
+                  <td className="px-3 py-2">{row.quantity ?? ""}</td>
+                  <td className="px-3 py-2 text-gray-600">{row.instructions ?? ""}</td>
                 </tr>
-                <tr key={`n-${i}`} className="border-t border-gray-50 bg-gray-50/50">
-                  <td className="px-3 py-1.5 text-gray-400 text-[11px]">Notes</td>
-                  <td className="px-3 py-1.5 text-gray-500 text-[11px]" colSpan={4}>{row.notes}</td>
-                </tr>
-              </>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      <div className="flex justify-center pt-2">
-        <button className="rounded border border-gray-300 px-6 py-2 text-sm text-gray-600 hover:bg-gray-50">
-          Get Lifetime Data
-        </button>
-      </div>
+      {/* Receipts */}
+      <SectionHeader color="bg-green-500" title="RECEIPTS" />
+      {receipts.length === 0 ? (
+        <div className="rounded border border-gray-100 px-3 py-6 text-center text-xs text-gray-400">
+          No receipts recorded for this patient.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded border border-gray-100">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-500">
+              <tr>
+                {["Date", "Voucher #", "Mode", "Amount", "Notes"].map((h) => (
+                  <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {receipts.map((row) => (
+                <tr key={row.id} className="border-t border-gray-100">
+                  <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDate(row.date)}</td>
+                  <td className="px-3 py-2">{row.receipt_number ?? "—"}</td>
+                  <td className="px-3 py-2">{row.mode ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    {(row.amount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-3 py-2 text-gray-500">{row.notes ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-gray-200 bg-gray-50 font-semibold">
+                <td className="px-3 py-2 text-right" colSpan={3}>Total</td>
+                <td className="px-3 py-2">
+                  {receiptsTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
     </div>
   );
 
@@ -774,6 +759,16 @@ export function PatientDetail() {
           </div>
         </div>
       </div>
+
+      {noteModal && (
+        <NoteModal
+          patientId={patient.id}
+          noteType={noteModal}
+          createdBy={user?.id ?? null}
+          onClose={() => setNoteModal(null)}
+          onSaved={(n) => setNotes((prev) => [n, ...prev])}
+        />
+      )}
     </div>
   );
 }

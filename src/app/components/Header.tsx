@@ -8,7 +8,7 @@ import { useBranch } from "../context/BranchContext";
 export function Header() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { branches, selectedBranch, setSelectedBranch } = useBranch();
+  const { branches, selectedBranch, setSelectedBranch, isLoading } = useBranch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileRole, setProfileRole] = useState("");
@@ -40,7 +40,13 @@ export function Header() {
             className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm hover:bg-secondary transition-colors"
           >
             <MapPin className="h-4 w-4 text-primary" />
-            <span className="font-medium">{selectedBranch?.name ?? "Loading…"}</span>
+            {/* "No branch assigned" is a real state, not a slow load: RLS
+                scopes branches to the user's assignments, so an unassigned user
+                legitimately has none. Showing "Loading…" forever would read as
+                a hang. */}
+            <span className="font-medium">
+              {selectedBranch?.name ?? (isLoading ? "Loading…" : "No branch assigned")}
+            </span>
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
           </button>
           
@@ -73,6 +79,13 @@ export function Header() {
                     {branch.name}
                   </button>
                 ))}
+                {branches.length === 0 && (
+                  <div className="px-4 py-3 text-xs text-muted-foreground">
+                    {isLoading
+                      ? "Loading…"
+                      : "You are not assigned to any branch. Ask an administrator for access."}
+                  </div>
+                )}
               </div>
             </>
           )}

@@ -9,7 +9,7 @@ import { AddPatient } from "./pages/AddPatient";
 import { Calendar } from "./pages/Calendar";
 import { Profile } from "./pages/Profile";
 import { Login } from "./pages/Login";
-import { SignUp } from "./pages/SignUp";
+import { AcceptInvite } from "./pages/AcceptInvite";
 import { SetupProfile } from "./pages/SetupProfile";
 import { ComingSoon } from "./pages/ComingSoon";
 import { PatientDetail } from "./pages/PatientDetail";
@@ -24,7 +24,10 @@ export const router = createBrowserRouter([
     Component: PublicRoute,
     children: [
       { path: "/login", Component: Login },
-      { path: "/signup", Component: SignUp },
+      // Public signup is deliberately absent: accounts are created only by
+      // an admin issuing an invite (Settings -> Users). /accept-invite is the
+      // landing page for the link in that email.
+      { path: "/accept-invite", Component: AcceptInvite },
     ],
   },
   {

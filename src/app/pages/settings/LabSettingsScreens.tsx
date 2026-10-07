@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 // Demo-only tables are served from memory; everything else hits Supabase.
-import { db as supabase } from "../../../lib/demoTables";
+import { supabase } from "../../../lib/supabase";
 import {
   SPageHeader, SInput, SSelect, STextarea, STable, SModal,
   SBadge, NewButton, SaveButton, ResetBtn,

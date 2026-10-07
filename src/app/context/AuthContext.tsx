@@ -13,10 +13,9 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<string | null>;
-  signup: (data: { name: string; email: string; phone: string; password: string }) => Promise<string | null>;
-  // TODO: Uncomment when SMS provider is connected to Supabase
-  // sendPhoneOtp: (phone: string) => Promise<string | null>;
-  // verifyPhoneOtp: (phone: string, token: string) => Promise<string | null>;
+  // Deliberately no signup(): accounts come only from an admin invite.
+  // Note this is client-side only — /auth/v1/signup stays open until disabled
+  // in Dashboard → Authentication → Sign In / Providers.
   logout: () => Promise<void>;
 }
 
@@ -55,38 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? error.message : null;
   };
 
-  const signup = async (data: {
-    name: string;
-    email: string;
-    phone: string;
-    password: string;
-  }): Promise<string | null> => {
-    const { error } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
-      options: { data: { name: data.name, phone: data.phone } },
-    });
-    return error ? error.message : null;
-  };
-
-  // TODO: Uncomment when SMS provider is connected to Supabase
-  // const sendPhoneOtp = async (phone: string): Promise<string | null> => {
-  //   const { error } = await supabase.auth.signInWithOtp({ phone });
-  //   return error ? error.message : null;
-  // };
-
-  // const verifyPhoneOtp = async (phone: string, token: string): Promise<string | null> => {
-  //   const { error } = await supabase.auth.verifyOtp({ phone, token, type: "sms" });
-  //   return error ? error.message : null;
-  // };
-
   const logout = async () => {
     await supabase.auth.signOut();
     // onAuthStateChange will set user to null automatically
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

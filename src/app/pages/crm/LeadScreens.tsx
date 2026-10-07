@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 // Demo-only tables are served from memory; everything else hits Supabase.
-import { db as supabase } from "../../../lib/demoTables";
+import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import { useBranches, useProfiles } from "../admin/primitives";
 import {

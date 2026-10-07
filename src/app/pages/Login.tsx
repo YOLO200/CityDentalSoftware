@@ -95,11 +95,11 @@ export function Login() {
             </button>
           </form>
 
-          <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">Don't have an account? </span>
-            <button onClick={() => navigate("/signup")} className="text-primary hover:underline">
-              Sign up
-            </button>
+          {/* No self-serve signup: accounts exist only when an administrator
+              invites them. */}
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            Accounts are created by your clinic administrator. Contact them to be
+            invited.
           </div>
         </div>
 

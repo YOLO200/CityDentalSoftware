@@ -327,7 +327,7 @@ export async function loadUnavailability(
 
   return (data ?? []).map((u: any) => ({
     id: u.id,
-    // One row per doctor (see migration 012), so this is always a single name.
+    // One row per doctor, so this is always a single name.
     doctors: [nameById.get(u.doctor_id) ?? "Unknown"],
     fromDate: u.from_date,
     fromTime: (u.from_time ?? "").slice(0, 5),

@@ -9,8 +9,6 @@ import {
 } from "./primitives";
 
 const ROLES      = ["Admin","Doctor","Receptionist","Accountant","Inventory Manager","CRM Executive"];
-const MODULES    = ["Dashboard","Patients","Appointments","Calendar","Reports","Admin","CRM","Billing","Inventory","Settings"];
-const PERMS      = ["View","Create","Edit","Delete","Export"];
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
@@ -26,10 +24,17 @@ export function Users() {
   const [fLast,     setFLast]     = useState("");
   const [fEmail,    setFEmail]    = useState("");
   const [fPhone,    setFPhone]    = useState("");
-  const [fRole,     setFRole]     = useState(ROLES[2]);
+  const [fRole,     setFRole]     = useState("");
   const [fBranch,   setFBranch]   = useState("");
-  const [fPass,     setFPass]     = useState("");
-  const [fConfirm,  setFConfirm]  = useState("");
+  const [notice,    setNotice]    = useState<string | null>(null);
+
+  // Real RBAC roles, not the hardcoded ROLES list: this choice becomes a
+  // user_roles row, which is what actually grants permissions.
+  const [roleOptions, setRoleOptions] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    supabase.from("roles").select("id, name").eq("active", true).order("name")
+      .then(({ data }) => setRoleOptions(data ?? []));
+  }, []);
 
   const [fFilterRole, setFFilterRole]   = useState("All");
   const [fFilterStatus, setFFilterStatus] = useState("All");
@@ -47,21 +52,68 @@ export function Users() {
     setLoading(false);
   }, [fFilterRole, fFilterStatus]);
 
-  const reset = () => { setFFirst(""); setFLast(""); setFEmail(""); setFPhone(""); setFRole(ROLES[2]); setFBranch(""); setFPass(""); setFConfirm(""); setError(null); };
+  const reset = () => { setFFirst(""); setFLast(""); setFEmail(""); setFPhone(""); setFRole(""); setFBranch(""); setError(null); setNotice(null); };
 
+  // Sends an invite email. The account is created server-side by the
+  // invite-user Edge Function, because inviting requires the service-role key
+  // and that must never reach the browser. No password is set here — the
+  // invited user chooses their own via the emailed link.
   const invite = async () => {
-    if (!fEmail || !fFirst) { setError("First name and email are required."); return; }
-    if (fPass && fPass !== fConfirm) { setError("Passwords do not match."); return; }
-    setSaving(true); setError(null);
-    const { error: err } = await supabase.from("profiles").insert({
-      name:      `${fFirst} ${fLast}`.trim(),
-      email:     fEmail, phone: fPhone || null,
-      role:      fRole,
-      branch_id: branchMap[fBranch] ?? null,
-      status:    "Active",
-    });
-    if (err) { setError(err.message); setSaving(false); return; }
-    setSaving(false); setModal(false); reset(); load();
+    const branchId = branchMap[fBranch];
+    const missing = [
+      !fFirst.trim() && "First name",
+      !fEmail.trim() && "Email",
+      !fPhone.trim() && "Mobile",
+      !fRole && "Role",
+      !branchId && "Assigned center",
+    ].filter(Boolean) as string[];
+
+    if (missing.length) { setError(`Required: ${missing.join(", ")}.`); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fEmail.trim())) {
+      setError("Enter a valid email address."); return;
+    }
+
+    setSaving(true); setError(null); setNotice(null);
+
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) { setError("Your session expired. Sign in again."); setSaving(false); return; }
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-user`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            email:    fEmail.trim(),
+            name:     `${fFirst} ${fLast}`.trim(),
+            phone:    fPhone.trim() || null,
+            roleId:   fRole,
+            branchId,
+          }),
+        },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error ?? `Invite failed (HTTP ${res.status}).`);
+        setSaving(false);
+        return;
+      }
+      setNotice(`Invite sent to ${body.email ?? fEmail.trim()}.`);
+      reset();
+      setModal(false);
+      load();
+    } catch (e) {
+      // A network-level failure here usually means the Edge Function was never
+      // deployed — the browser gets a CORS/404 rather than a JSON error.
+      setError(
+        `Could not reach the invite service: ${(e as Error).message}. ` +
+        `Check that the invite-user Edge Function is deployed.`,
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleStatus = async (id: string, current: string) => {
@@ -71,7 +123,15 @@ export function Users() {
 
   return (
     <div>
-      <SPageHeader title="Users" rightSlot={<NewButton onClick={() => { reset(); setModal(true); }} label="+ Add User" />} />
+      <SPageHeader title="Users" rightSlot={<NewButton onClick={() => { reset(); setModal(true); }} label="+ Invite User" />} />
+
+      {/* Shown after the modal closes, so the admin sees the invite actually went. */}
+      {notice && (
+        <div className="mb-4 flex items-center justify-between rounded border border-green-200 bg-green-50 px-4 py-2 text-xs text-green-700">
+          <span>{notice}</span>
+          <button onClick={() => setNotice(null)} className="text-green-600 hover:underline">Dismiss</button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-end gap-3 mb-4 bg-white border border-gray-200 rounded-lg px-4 py-3">
@@ -110,21 +170,30 @@ export function Users() {
         ])}
       />
 
-      <SModal title="Add User" open={modal} onClose={() => setModal(false)} width="max-w-2xl">
+      <SModal title="Invite User" open={modal} onClose={() => setModal(false)} width="max-w-2xl">
         <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            The user receives an email invitation and sets their own password. Their role
+            and assigned center are fixed here and cannot be changed by them.
+          </p>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="grid grid-cols-2 gap-4">
-            <SInput label="First Name"       value={fFirst}   onChange={setFFirst}   required />
-            <SInput label="Last Name"        value={fLast}    onChange={setFLast} />
-            <SInput label="Email"            value={fEmail}   onChange={setFEmail}   required type="email" />
-            <SInput label="Mobile"           value={fPhone}   onChange={setFPhone} />
-            <SSelect label="Role"            options={ROLES}  value={fRole}          onChange={setFRole} />
-            <SSelect label="Assigned Center" options={["Select Center", ...branches.map(b => b.name)]} value={fBranch} onChange={setFBranch} />
-            <SInput label="Password"         value={fPass}    onChange={setFPass}    type="password" />
-            <SInput label="Confirm Password" value={fConfirm} onChange={setFConfirm} type="password" />
+            <SInput label="First Name" value={fFirst} onChange={setFFirst} required />
+            <SInput label="Last Name"  value={fLast}  onChange={setFLast} />
+            <SInput label="Email"      value={fEmail} onChange={setFEmail} required type="email" />
+            <SInput label="Mobile"     value={fPhone} onChange={setFPhone} required />
+            <SSelect
+              label="Role" required value={fRole} onChange={setFRole}
+              options={[{ value: "", label: "Select Role" },
+                        ...roleOptions.map(r => ({ value: r.id, label: r.name }))]}
+            />
+            <SSelect
+              label="Assigned Center" required value={fBranch} onChange={setFBranch}
+              options={["Select Center", ...branches.map(b => b.name)]}
+            />
           </div>
           <div className="flex gap-3 pt-3 border-t border-gray-100">
-            <SaveButton onClick={invite} loading={saving} label="CREATE USER" />
+            <SaveButton onClick={invite} loading={saving} label="SEND INVITE" />
             <ResetBtn onClick={reset} />
           </div>
         </div>
@@ -193,7 +262,6 @@ export function StaffMembers() {
   );
 }
 
-// RolesPermissions is exported from RolesPermissionsScreen.tsx (re-exported at top of file)
 
 // ─── Access Control ───────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { AlertCircle, RefreshCw, MoreVertical } from "lucide-react";
 // Demo-only tables are served from memory; everything else hits Supabase.
-import { db as supabase } from "../../../lib/demoTables";
+import { supabase } from "../../../lib/supabase";
 import {
   ADropdown, ADate, AInput, ATextarea, AdminTable, PageHeader, FormCard,
   PrimaryButton, ResetButton, NewButton, StatusBadge, fmtDate, LoadingRows,

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { ChevronDown, ChevronLeft, ChevronRight, Copy, Plus, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { generatePatientCode, isPatientCodeCollision } from "../../lib/patientCode";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
 
@@ -128,7 +129,9 @@ export function AddPatient() {
   // Holds a branches.id; defaults to (and follows) the header's branch selector.
   const [center, setCenter] = useState(selectedBranch?.id ?? "");
   useEffect(() => { setCenter(selectedBranch?.id ?? ""); }, [selectedBranch]);
-  const [patientId, setPatientId] = useState("");
+  // Auto-generated once per form mount and shown read-only. The lazy initialiser
+  // keeps it stable across re-renders; a unique index backs it server-side.
+  const [patientId, setPatientId] = useState(generatePatientCode);
   const [title, setTitle] = useState("");
   const [firstName, setFirstName] = useState("");
   const [surname, setSurname] = useState("");
@@ -226,9 +229,26 @@ export function AddPatient() {
 
   const handleSave = async () => {
     setSaveError(null);
-    const { error } = await supabase.from("patients").insert({
+
+    // These were marked required in the UI but never checked, so a patient
+    // could be saved with no name and no branch. branch_id in particular is
+    // what RLS scopes access on — a patient with none is invisible to everyone.
+    const missing: string[] = [];
+    if (!center) missing.push("Center");
+    if (!firstName.trim()) missing.push("First name");
+    if (!surname.trim()) missing.push("Surname");
+    if (!whatsappNumber.trim()) missing.push("Mobile number");
+
+    if (missing.length > 0) {
+      setSaveError(`Please fill in: ${missing.join(", ")}.`);
+      setActiveTab("basic");
+      return;
+    }
+
+    const buildRow = (code: string) => ({
       created_by: user?.id ?? null,
       branch_id: center || null,
+      patient_code: code,
       first_name: firstName,
       last_name: surname,
       gender: gender || null,
@@ -254,6 +274,17 @@ export function AddPatient() {
       whatsapp_notifications: stdReminder,
       is_active: true,
     });
+
+    // One retry with a fresh code: the client-generated value is only checked
+    // for uniqueness at insert time, so a concurrent save can lose the race.
+    let code = patientId;
+    let { error } = await supabase.from("patients").insert(buildRow(code));
+    if (isPatientCodeCollision(error)) {
+      code = generatePatientCode();
+      setPatientId(code);
+      ({ error } = await supabase.from("patients").insert(buildRow(code)));
+    }
+
     if (error) {
       setSaveError(error.message);
       return;
@@ -317,11 +348,12 @@ export function AddPatient() {
             onChange={(e) => setCenter(e.target.value)}
             options={branches.map((b) => ({ value: b.id, label: b.name }))}
           />
+          {/* Auto-generated — read-only so it cannot drift from what gets saved. */}
           <FInput
-            label="Patient ID"
-            required
+            label="Patient ID (auto-generated)"
             value={patientId}
-            onChange={(e) => setPatientId(e.target.value)}
+            readOnly
+            className="bg-gray-50"
           />
         </div>
       </div>
