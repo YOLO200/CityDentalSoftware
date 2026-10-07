@@ -3,6 +3,7 @@ import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 import { OnboardedRoute } from "./components/OnboardedRoute";
+import { AccountReadyRoute } from "./components/AccountReadyRoute";
 import { Dashboard } from "./pages/Dashboard";
 import { Patients } from "./pages/Patients";
 import { AddPatient } from "./pages/AddPatient";
@@ -19,41 +20,51 @@ import CRM from "./pages/CRM";
 import Settings from "./pages/Settings";
 
 export const router = createBrowserRouter([
+  // Deliberately NOT under PublicRoute: the invite token creates a session
+  // before this renders, and PublicRoute bounces anyone with a session to "/".
+  // That made the set-password screen unreachable. It is not under
+  // ProtectedRoute either — it handles the no-session case itself, showing an
+  // "invalid or expired link" message.
+  { path: "/accept-invite", Component: AcceptInvite },
   {
     // Public-only routes: redirect to / if already logged in
     Component: PublicRoute,
     children: [
-      { path: "/login", Component: Login },
       // Public signup is deliberately absent: accounts are created only by
-      // an admin issuing an invite (Settings -> Users). /accept-invite is the
-      // landing page for the link in that email.
-      { path: "/accept-invite", Component: AcceptInvite },
+      // an admin issuing an invite (Settings -> Users).
+      { path: "/login", Component: Login },
     ],
   },
   {
     // Protected routes: redirect to /login if not authenticated
     Component: ProtectedRoute,
     children: [
-      // Onboarding — no sidebar, accessible before profile is complete
-      { path: "/setup-profile", Component: SetupProfile },
       {
-        // Onboarded guard: redirects to /setup-profile if profile_complete is false
-        Component: OnboardedRoute,
+        // Blocks everything until an invited user has set a password.
+        Component: AccountReadyRoute,
         children: [
+          // Onboarding — no sidebar, accessible before profile is complete
+          { path: "/setup-profile", Component: SetupProfile },
           {
-            Component: Layout,
+            // Onboarded guard: redirects to /setup-profile if profile_complete is false
+            Component: OnboardedRoute,
             children: [
-              { path: "/", Component: Dashboard },
-              { path: "/patients", Component: Patients },
-              { path: "/patients/add", Component: AddPatient },
-              { path: "/patients/:id", Component: PatientDetail },
-              { path: "/calendar", Component: Calendar },
-              { path: "/profile", Component: Profile },
-              { path: "/reports", Component: Reports },
-              { path: "/admin", Component: Admin },
-              { path: "/crm", Component: CRM },
-              { path: "/help", Component: ComingSoon },
-              { path: "/settings", Component: Settings },
+              {
+                Component: Layout,
+                children: [
+                  { path: "/", Component: Dashboard },
+                  { path: "/patients", Component: Patients },
+                  { path: "/patients/add", Component: AddPatient },
+                  { path: "/patients/:id", Component: PatientDetail },
+                  { path: "/calendar", Component: Calendar },
+                  { path: "/profile", Component: Profile },
+                  { path: "/reports", Component: Reports },
+                  { path: "/admin", Component: Admin },
+                  { path: "/crm", Component: CRM },
+                  { path: "/help", Component: ComingSoon },
+                  { path: "/settings", Component: Settings },
+                ],
+              },
             ],
           },
         ],

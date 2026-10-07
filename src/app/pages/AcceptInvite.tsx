@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { supabase } from "../../lib/supabase";
 
+/** Password rules, used for both the live checklist and the submit guard. */
+const PASSWORD_RULES: { label: string; test: (p: string) => boolean }[] = [
+  { label: "At least 8 characters",        test: (p) => p.length >= 8 },
+  { label: "At least one capital letter",  test: (p) => /[A-Z]/.test(p) },
+  { label: "At least one number",          test: (p) => /[0-9]/.test(p) },
+];
+
 /**
  * Landing page for the link in an invite email.
  *
@@ -55,12 +62,15 @@ export function AcceptInvite() {
     };
   }, []);
 
+  const allRulesMet = PASSWORD_RULES.every((r) => r.test(password));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    const unmet = PASSWORD_RULES.filter((r) => !r.test(password));
+    if (unmet.length > 0) {
+      setError(`Password needs: ${unmet.map((r) => r.label.toLowerCase()).join(", ")}.`);
       return;
     }
     if (password !== confirm) {
@@ -137,10 +147,24 @@ export function AcceptInvite() {
               type="password"
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(null); }}
-              placeholder="At least 8 characters"
+              placeholder="Choose a password"
               autoComplete="new-password"
               className="rounded-xl border border-border bg-input-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
+            <ul className="mt-1 space-y-0.5">
+              {PASSWORD_RULES.map((r) => {
+                const ok = r.test(password);
+                return (
+                  <li
+                    key={r.label}
+                    className={`flex items-center gap-1.5 text-xs ${ok ? "text-green-600" : "text-muted-foreground"}`}
+                  >
+                    <span aria-hidden>{ok ? "✓" : "○"}</span>
+                    {r.label}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -162,7 +186,7 @@ export function AcceptInvite() {
 
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || !allRulesMet || password !== confirm}
             className="w-full rounded-xl bg-primary px-6 py-2.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Set password and continue"}
