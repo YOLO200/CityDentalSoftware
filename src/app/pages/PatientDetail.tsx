@@ -22,6 +22,7 @@ import { useBranch } from "../context/BranchContext";
 import { NoteModal, type NoteType, type PatientNote } from "./patient/NoteModal";
 import { EditPatientModal, type EditablePatient, type EditSection } from "./patient/EditPatientModal";
 import { DocumentsTab } from "./patient/DocumentsTab";
+import { VisitsTab } from "./patient/VisitsTab";
 import { ConfirmDialog } from "./patient/ConfirmDialog";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -137,9 +138,11 @@ export function PatientDetail() {
           .select("*, branches(name)")
           .eq("id", id)
           .single(),
+        // "*" rather than a column list: visit_id only exists once 023 has run,
+        // and naming it would fail the query before then.
         supabase
           .from("prescriptions")
-          .select("id, drug_name, dosage, duration, quantity, instructions, date")
+          .select("*")
           .eq("patient_id", id)
           .order("date", { ascending: false }),
         supabase
@@ -156,7 +159,13 @@ export function PatientDetail() {
 
       if (cancelled) return;
       setPatient(patientRes.data as PatientData | null);
-      setPrescriptions((rxRes.data as PrescriptionRow[] | null) ?? []);
+      // Prescriptions written as part of a visit are shown inside that visit;
+      // this list keeps only the standalone (pre-visits) ones.
+      setPrescriptions(
+        ((rxRes.data as (PrescriptionRow & { visit_id?: string | null })[] | null) ?? []).filter(
+          (r) => !r.visit_id,
+        ),
+      );
       setReceipts((receiptRes.data as ReceiptRow[] | null) ?? []);
       setNotes((notesRes.data as PatientNote[] | null) ?? []);
       setIsLoading(false);
@@ -552,10 +561,14 @@ export function PatientDetail() {
           {patient.current_medications && (
             <div><span className="text-gray-400">Medications: </span>{patient.current_medications}</div>
           )}
+          {patient.habits && (
+            <div><span className="text-gray-400">Habits: </span>{patient.habits}</div>
+          )}
           {!patient.blood_group &&
             !patient.medical_conditions &&
             !(patient.allergies && patient.allergies.length > 0) &&
-            !patient.current_medications && (
+            !patient.current_medications &&
+            !patient.habits && (
               <div className="text-gray-400">No medical information recorded.</div>
             )}
         </div>
@@ -604,14 +617,20 @@ export function PatientDetail() {
 
   // ── Visits tab ──────────────────────────────────────────────────────────────
   //
-  // Clinical notes, treatment plan and treatment-done tables were removed: they
-  // were hardcoded sample rows, and no clinical_notes / treatment_plans /
-  // treatments table exists to back them. Prescriptions and receipts are real
-  // and render per-patient below.
+  // Visits (clinical note, treatment plan/done, package, prescriptions,
+  // instructions) come from migration 023 — see patient/VisitsTab.tsx. Below
+  // them: prescriptions recorded outside any visit, and receipts.
 
   const visitsTab = (
     <div className="px-5 py-4 space-y-4">
-      {/* Prescriptions */}
+      <VisitsTab
+        patientId={patient.id}
+        patientBranchId={patient.branch_id}
+        onUpdateMedical={() => setEditSection("medical")}
+      />
+
+      {/* Standalone prescriptions — ones recorded before visits existed. */}
+      {prescriptions.length > 0 && (<>
       <SectionHeader
         color="bg-blue-500"
         title="PRESCRIPTION"
@@ -626,11 +645,6 @@ export function PatientDetail() {
           </div>
         }
       />
-      {prescriptions.length === 0 ? (
-        <div className="rounded border border-gray-100 px-3 py-6 text-center text-xs text-gray-400">
-          No prescriptions recorded for this patient.
-        </div>
-      ) : (
         <div className="overflow-x-auto rounded border border-gray-100">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500">
@@ -661,7 +675,7 @@ export function PatientDetail() {
             </tbody>
           </table>
         </div>
-      )}
+      </>)}
 
       {/* Receipts */}
       <SectionHeader color="bg-green-500" title="RECEIPTS" />

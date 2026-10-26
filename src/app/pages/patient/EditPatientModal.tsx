@@ -27,6 +27,8 @@ export interface EditablePatient {
   allergies: string[] | null;
   medical_conditions: string | null;
   current_medications: string | null;
+  /** Added by migration 023 — absent from the row until it runs. */
+  habits?: string | null;
   pregnancy_status: string | null;
   chief_complaint: string | null;
   previous_dentist: string | null;
@@ -87,7 +89,7 @@ const KEYS: (keyof EditablePatient)[] = [
   "first_name", "last_name", "gender", "date_of_birth", "anniversary_date",
   "first_visit_date", "is_active", "phone", "alternate_phone", "email",
   "address", "city", "state", "zip_code", "blood_group", "allergies",
-  "medical_conditions", "current_medications", "pregnancy_status",
+  "medical_conditions", "current_medications", "habits", "pregnancy_status",
   "chief_complaint", "previous_dentist", "last_dental_visit",
   "referring_doctor", "treatment_notes", "emergency_contact_name",
   "emergency_contact_phone", "insurance_provider", "policy_number",
@@ -97,7 +99,9 @@ const KEYS: (keyof EditablePatient)[] = [
 
 function toForm(p: EditablePatient): Form {
   const f = {} as Form;
-  for (const k of KEYS) {
+  // A column the live row doesn't have (habits, before 023) is left out of the
+  // form entirely — writing it back would fail the whole update.
+  for (const k of KEYS.filter((key) => key in p)) {
     const v = p[k];
     if ((BOOL_KEYS as readonly string[]).includes(k)) f[k] = v !== false;
     else if (k === "allergies") f[k] = (p.allergies ?? []).join(", ");
@@ -303,6 +307,7 @@ export function EditPatientModal({ patientId, patient, initialSection, onClose, 
             {text("allergies", "Allergies (comma-separated)", { wide: true })}
             {area("medical_conditions", "Medical history")}
             {area("current_medications", "Current medications")}
+            {"habits" in form && area("habits", "Habits (smoking, tobacco, bruxism…)")}
             {area("chief_complaint", "Chief complaint")}
             {text("previous_dentist", "Previous dentist")}
             {text("last_dental_visit", "Last dental visit", { type: "date" })}
