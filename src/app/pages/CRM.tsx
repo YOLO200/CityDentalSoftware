@@ -1,187 +1,123 @@
 import { useState } from "react";
-import {
-  Users, Target, MessageSquare, TrendingUp, CheckSquare,
-  ChevronDown, ChevronRight,
-} from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
-// Leads
-import {
-  LeadDashboard, LeadList, AddLead, LeadFollowups,
-  MissedFollowups, ConvertedLeads, LostLeads,
-} from "./crm/LeadScreens";
-
-// Opportunities
-import {
-  OpportunityDashboard, OpportunityPipeline, OpportunityList,
-  ClosedWon, ClosedLost,
-} from "./crm/OpportunityScreens";
-
-// Communication
-import {
-  CommunicationCenter, Templates, BulkMessaging,
-  SMSCampaigns, WhatsAppCampaigns, EmailCampaigns,
-} from "./crm/CommunicationScreens";
-
-// Marketing
-import {
-  ReferralSources, CampaignTracking, PatientRetention,
-  FeedbackReviews, MembershipCampaigns,
-} from "./crm/MarketingScreens";
-
-// Tasks
-import { TaskList, RecurringTasks, ReminderCenter } from "./crm/TaskScreens";
+import { PatientTracker } from "./crm/PatientTracker";
+import { CampaignWidget, Enquiries, Prospects } from "./crm/EnquiryScreens";
+import { OpportunityList, OpportunityPipeline } from "./crm/OpportunityScreens";
+import { Emails, SmsWaUsageDetailed, SmsWaUsageSummary, WabaUsageDetailed } from "./crm/CommunicationUsage";
 
 // ─── Navigation config ────────────────────────────────────────────────────────
 
 type NavItem = { id: string; label: string };
-type NavSection = { id: string; label: string; icon: React.ReactNode; items: NavItem[] };
+type NavSection = { id: string; label: string; items: NavItem[] };
 
 const NAV: NavSection[] = [
   {
-    id: "leads", label: "Leads", icon: <Users className="h-4 w-4" />,
+    id: "growth", label: "Practice Growth",
+    items: [{ id: "patient-tracker", label: "Patient Tracker" }],
+  },
+  {
+    id: "crm", label: "CRM",
     items: [
-      { id: "lead-dashboard",   label: "Lead Dashboard" },
-      { id: "lead-list",        label: "Lead List" },
-      { id: "add-lead",         label: "Add Lead" },
-      { id: "lead-followups",   label: "Lead Follow-ups" },
-      { id: "missed-followups", label: "Missed Follow-ups" },
-      { id: "converted-leads",  label: "Converted Leads" },
-      { id: "lost-leads",       label: "Lost Leads" },
+      { id: "prospect", label: "Prospect" },
+      { id: "enquiries", label: "Enquiries" },
+      { id: "campaign-widget", label: "Campaign Widget" },
+      { id: "opportunity", label: "Opportunity" },
     ],
   },
   {
-    id: "opportunities", label: "Opportunities", icon: <Target className="h-4 w-4" />,
+    id: "communications", label: "Communications",
     items: [
-      { id: "opp-dashboard", label: "Dashboard" },
-      { id: "opp-pipeline",  label: "Pipeline (Kanban)" },
-      { id: "opp-list",      label: "Opportunity List" },
-      { id: "closed-won",    label: "Closed Won" },
-      { id: "closed-lost",   label: "Closed Lost" },
-    ],
-  },
-  {
-    id: "communication", label: "Communication", icon: <MessageSquare className="h-4 w-4" />,
-    items: [
-      { id: "comm-center",    label: "Communication Center" },
-      { id: "templates",      label: "Templates" },
-      { id: "bulk-messaging", label: "Bulk Messaging" },
-      { id: "sms-campaigns",  label: "SMS Campaigns" },
-      { id: "wa-campaigns",   label: "WhatsApp Campaigns" },
-      { id: "email-campaigns",label: "Email Campaigns" },
-    ],
-  },
-  {
-    id: "marketing", label: "Marketing", icon: <TrendingUp className="h-4 w-4" />,
-    items: [
-      { id: "referral-sources",    label: "Referral Sources" },
-      { id: "campaign-tracking",   label: "Campaign Tracking" },
-      { id: "patient-retention",   label: "Patient Retention" },
-      { id: "feedback-reviews",    label: "Feedback & Reviews" },
-      { id: "membership-campaigns",label: "Membership Campaigns" },
-    ],
-  },
-  {
-    id: "tasks", label: "Tasks & Follow-ups", icon: <CheckSquare className="h-4 w-4" />,
-    items: [
-      { id: "task-list",      label: "Task List" },
-      { id: "recurring-tasks",label: "Recurring Tasks" },
-      { id: "reminder-center",label: "Reminder Center" },
+      { id: "emails", label: "Emails" },
+      { id: "sms-wa-detailed", label: "SMS/WA Usage Detailed" },
+      { id: "waba-detailed", label: "WABA Usage Detailed" },
+      { id: "sms-wa-summary", label: "SMS/WA Usage Summary" },
     ],
   },
 ];
 
-// ─── Screen router ────────────────────────────────────────────────────────────
+const ACTIVE_KEY = "dentosys.crm.active";
 
-function renderScreen(id: string, onNavigate: (page: string) => void) {
+/** Pipeline (kanban) by default, with the flat list one click away. */
+function Opportunity() {
+  const [view, setView] = useState<"pipeline" | "list">("pipeline");
+  return (
+    <div>
+      <div className="mb-4 flex gap-2">
+        {(["pipeline", "list"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`rounded-full border px-3 py-1 text-xs ${view === v ? "border-[#1e2d5a] bg-[#1e2d5a] text-white" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}
+          >
+            {v === "pipeline" ? "Pipeline" : "List"}
+          </button>
+        ))}
+      </div>
+      {view === "pipeline" ? <OpportunityPipeline /> : <OpportunityList />}
+    </div>
+  );
+}
+
+function renderScreen(id: string) {
   switch (id) {
-    // Leads
-    case "lead-dashboard":   return <LeadDashboard onNavigate={onNavigate} />;
-    case "lead-list":        return <LeadList onNavigate={onNavigate} />;
-    case "add-lead":         return <AddLead onNavigate={onNavigate} />;
-    case "lead-followups":   return <LeadFollowups />;
-    case "missed-followups": return <MissedFollowups />;
-    case "converted-leads":  return <ConvertedLeads />;
-    case "lost-leads":       return <LostLeads />;
-    // Opportunities
-    case "opp-dashboard":    return <OpportunityDashboard />;
-    case "opp-pipeline":     return <OpportunityPipeline />;
-    case "opp-list":         return <OpportunityList />;
-    case "closed-won":       return <ClosedWon />;
-    case "closed-lost":      return <ClosedLost />;
-    // Communication
-    case "comm-center":      return <CommunicationCenter />;
-    case "templates":        return <Templates />;
-    case "bulk-messaging":   return <BulkMessaging />;
-    case "sms-campaigns":    return <SMSCampaigns />;
-    case "wa-campaigns":     return <WhatsAppCampaigns />;
-    case "email-campaigns":  return <EmailCampaigns />;
-    // Marketing
-    case "referral-sources":     return <ReferralSources />;
-    case "campaign-tracking":    return <CampaignTracking />;
-    case "patient-retention":    return <PatientRetention />;
-    case "feedback-reviews":     return <FeedbackReviews />;
-    case "membership-campaigns": return <MembershipCampaigns />;
-    // Tasks
-    case "task-list":        return <TaskList />;
-    case "recurring-tasks":  return <RecurringTasks />;
-    case "reminder-center":  return <ReminderCenter />;
-    default:                 return <LeadDashboard onNavigate={onNavigate} />;
+    case "patient-tracker": return <PatientTracker />;
+    case "prospect":        return <Prospects />;
+    case "enquiries":       return <Enquiries />;
+    case "campaign-widget": return <CampaignWidget />;
+    case "opportunity":     return <Opportunity />;
+    case "emails":          return <Emails />;
+    case "sms-wa-detailed": return <SmsWaUsageDetailed />;
+    case "waba-detailed":   return <WabaUsageDetailed />;
+    case "sms-wa-summary":  return <SmsWaUsageSummary />;
+    default:                return <PatientTracker />;
   }
+}
+
+function readActive(): string {
+  try {
+    const v = localStorage.getItem(ACTIVE_KEY);
+    if (v && NAV.some((s) => s.items.some((i) => i.id === v))) return v;
+  } catch { /* storage unavailable */ }
+  return "patient-tracker";
 }
 
 // ─── CRM Page ─────────────────────────────────────────────────────────────────
 
 export default function CRM() {
-  const [active,   setActive]   = useState("lead-dashboard");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    leads: true, opportunities: false, communication: false, marketing: false, tasks: false,
-  });
+  const [active, setActive] = useState(readActive);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ growth: true, crm: true, communications: true });
 
-  const toggle = (sectionId: string) =>
-    setExpanded(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
-
-  const navigate = (itemId: string, sectionId: string) => {
-    setActive(itemId);
-    setExpanded(prev => ({ ...prev, [sectionId]: true }));
+  const open = (id: string) => {
+    setActive(id);
+    try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* storage unavailable */ }
   };
 
   return (
-    <div className="flex h-full bg-gray-50 overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-52 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
-        <div className="px-4 py-3 border-b border-gray-100">
-          <h2 className="text-sm font-bold text-[#1e2d5a]">CRM</h2>
-          <p className="text-[10px] text-gray-400">Customer Relationship</p>
-        </div>
-
-        <nav className="flex-1 py-2">
-          {NAV.map(section => (
-            <div key={section.id}>
-              {/* Section header */}
+    <div className="flex h-full overflow-hidden bg-white">
+      <aside className="w-64 flex-shrink-0 overflow-y-auto bg-gray-50">
+        <nav>
+          {NAV.map((section) => (
+            <div key={section.id} className="border-b border-gray-200">
               <button
-                onClick={() => toggle(section.id)}
-                className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 group"
+                onClick={() => setExpanded((p) => ({ ...p, [section.id]: !p[section.id] }))}
+                aria-expanded={expanded[section.id]}
+                className="flex w-full items-center justify-between px-4 py-4 text-left"
               >
-                <div className="flex items-center gap-2 text-gray-600 group-hover:text-[#1e2d5a]">
-                  {section.icon}
-                  <span className="text-xs font-semibold">{section.label}</span>
-                </div>
+                <span className="text-sm font-semibold text-[#1e2d5a]">{section.label}</span>
                 {expanded[section.id]
-                  ? <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                  : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
+                  ? <ChevronUp className="h-4 w-4 text-[#1e2d5a]" />
+                  : <ChevronDown className="h-4 w-4 text-[#1e2d5a]" />}
               </button>
-
-              {/* Items */}
               {expanded[section.id] && (
-                <div className="pb-1">
-                  {section.items.map(item => (
+                <div className="pb-2">
+                  {section.items.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => navigate(item.id, section.id)}
-                      className={`w-full text-left px-4 py-1.5 text-[11px] transition-colors ${
-                        active === item.id
-                          ? "bg-orange-50 text-orange-600 font-semibold border-r-2 border-orange-500"
-                          : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                      onClick={() => open(item.id)}
+                      aria-current={active === item.id ? "page" : undefined}
+                      className={`block w-full px-6 py-2 text-left text-sm transition-colors ${
+                        active === item.id ? "text-orange-500" : "text-gray-700 hover:text-[#1e2d5a]"
                       }`}
                     >
                       {item.label}
@@ -194,13 +130,7 @@ export default function CRM() {
         </nav>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto p-5">
-        {renderScreen(active, (page) => {
-          const section = NAV.find(s => s.items.some(i => i.id === page));
-          if (section) navigate(page, section.id);
-        })}
-      </main>
+      <main className="flex-1 overflow-y-auto p-5">{renderScreen(active)}</main>
     </div>
   );
 }

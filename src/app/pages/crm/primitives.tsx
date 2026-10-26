@@ -3,7 +3,8 @@ import { ChevronDown, X, Filter, ArrowUpDown } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const LEAD_STATUSES  = ["New", "Contacted", "Interested", "Follow-up Pending", "Converted", "Lost"];
+// Must match the Postgres lead_status enum — "Follow-up Pending" is not a value.
+export const LEAD_STATUSES  = ["New", "Contacted", "Interested", "Converted", "Lost"];
 export const PRIORITIES     = ["High", "Medium", "Low"];
 export const LEAD_SOURCES   = ["Instagram", "Facebook", "Google Ads", "Walk-in", "Doctor Referral", "Existing Patient", "Website", "WhatsApp", "Other"];
 export const TREATMENTS     = ["Dental Implant", "Root Canal", "Braces / Aligners", "Teeth Whitening", "Crown & Bridge", "Scaling & Cleaning", "Veneers", "Full Mouth Rehab", "Extraction", "Dentures", "Other"];
