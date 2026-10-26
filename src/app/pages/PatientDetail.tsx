@@ -14,38 +14,21 @@ import {
   MessageSquare,
   FileText,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
 import { NoteModal, type NoteType, type PatientNote } from "./patient/NoteModal";
+import { EditPatientModal, type EditablePatient, type EditSection } from "./patient/EditPatientModal";
+import { DocumentsTab } from "./patient/DocumentsTab";
+import { ConfirmDialog } from "./patient/ConfirmDialog";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface PatientData {
+interface PatientData extends EditablePatient {
   id: string;
   patient_code: string | null;
-  first_name: string;
-  last_name: string;
-  gender: string | null;
-  date_of_birth: string | null;
-  phone: string | null;
-  alternate_phone: string | null;
-  email: string | null;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  zip_code: string | null;
-  blood_group: string | null;
-  allergies: string[] | null;
-  medical_conditions: string | null;
-  current_medications: string | null;
-  emergency_contact_name: string | null;
-  emergency_contact_phone: string | null;
-  first_visit_date: string | null;
-  insurance_provider: string | null;
-  policy_number: string | null;
-  is_active: boolean;
   created_at: string;
   branch_id: string | null;
   /** Embedded from the branches FK; null when the patient has no branch. */
@@ -135,7 +118,9 @@ export function PatientDetail() {
   const [internalOpen, setInternalOpen] = useState(true);
   const [addressOpen, setAddressOpen] = useState(false);
   const [notes, setNotes] = useState<PatientNote[]>([]);
-  const [noteModal, setNoteModal] = useState<NoteType | null>(null);
+  const [noteModal, setNoteModal] = useState<{ type: NoteType; existing?: PatientNote } | null>(null);
+  const [deletingNote, setDeletingNote] = useState<PatientNote | null>(null);
+  const [editSection, setEditSection] = useState<EditSection | null>(null);
   const [savingBranch, setSavingBranch] = useState(false);
   const [branchError, setBranchError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -250,6 +235,27 @@ export function PatientDetail() {
     setSavingBranch(false);
   };
 
+  // PostgREST returns an object for a many-to-one embed, but the client types
+  // it as an array. Accept either rather than casting blind.
+  const handlePatientSaved = (row: Record<string, unknown>) => {
+    const embed = row.branches as { name: string } | { name: string }[] | null;
+    const branch = Array.isArray(embed) ? (embed[0] ?? null) : embed;
+    setPatient({ ...(row as unknown as PatientData), branches: branch });
+  };
+
+  const handleDeleteNote = async (note: PatientNote): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from("patient_notes")
+      .delete()
+      .eq("id", note.id)
+      .select("id");
+    if (error) return error.message;
+    // RLS reports a forbidden delete as zero rows, not an error.
+    if (!data || data.length === 0) return "You don't have permission to delete this note.";
+    setNotes((prev) => prev.filter((n) => n.id !== note.id));
+    return null;
+  };
+
   // ── Notes panels ────────────────────────────────────────────────────────────
   // Social and Internal notes are the same panel over a different note_type.
   // Keep "+" a sibling of the collapse toggle, never nested inside it: a
@@ -268,7 +274,7 @@ export function PatientDetail() {
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[#1e2d5a]">{title}</span>
             <button
-              onClick={() => setNoteModal(type)}
+              onClick={() => setNoteModal({ type })}
               aria-label={`Add ${title.toLowerCase()}`}
               className="rounded-full bg-gray-100 p-0.5 hover:bg-gray-200"
             >
@@ -295,7 +301,25 @@ export function PatientDetail() {
             <ul className="mt-3 space-y-2.5">
               {rows.map((n) => (
                 <li key={n.id} className="text-xs">
-                  <div className="text-gray-400">{formatDate(n.note_date)}</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">{formatDate(n.note_date)}</span>
+                    <span className="flex gap-0.5">
+                      <button
+                        onClick={() => setNoteModal({ type, existing: n })}
+                        aria-label="Edit note"
+                        className="rounded p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => setDeletingNote(n)}
+                        aria-label="Delete note"
+                        className="rounded p-1 text-gray-300 hover:bg-gray-100 hover:text-red-600"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </span>
+                  </div>
                   <div className="whitespace-pre-line text-gray-700">{n.note}</div>
                 </li>
               ))}
@@ -341,11 +365,22 @@ export function PatientDetail() {
 
         {/* Action icons row */}
         <div className="flex items-center gap-2 mt-3">
-          {[FileText, Printer, Share2, Edit, MoreVertical].map((Icon, i) => (
+          {[FileText, Printer, Share2].map((Icon, i) => (
             <button key={i} className="rounded p-1.5 hover:bg-gray-100 text-gray-500">
               <Icon className="h-4 w-4" />
             </button>
           ))}
+          <button
+            onClick={() => setEditSection("basic")}
+            aria-label="Edit patient"
+            title="Edit patient"
+            className="rounded p-1.5 hover:bg-gray-100 text-gray-500"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button className="rounded p-1.5 hover:bg-gray-100 text-gray-500">
+            <MoreVertical className="h-4 w-4" />
+          </button>
         </div>
 
         {/* SMS/WA, Email, Letter */}
@@ -448,16 +483,30 @@ export function PatientDetail() {
 
       {/* Address */}
       <div className="px-4 py-3 border-b border-gray-100">
-        <button
-          onClick={() => setAddressOpen((v) => !v)}
-          className="flex w-full items-center justify-between"
-        >
-          <span className="text-sm font-semibold text-[#1e2d5a]">Address</span>
-          {addressOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-        </button>
-        {addressOpen && patient.address && (
+        <div className="flex w-full items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[#1e2d5a]">Address</span>
+            <button
+              onClick={() => setEditSection("address")}
+              aria-label="Edit address"
+              className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          </div>
+          <button
+            onClick={() => setAddressOpen((v) => !v)}
+            aria-label={addressOpen ? "Collapse address" : "Expand address"}
+            aria-expanded={addressOpen}
+          >
+            {addressOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+          </button>
+        </div>
+        {addressOpen && (
           <div className="mt-2 text-xs text-gray-600">
-            {[patient.address, patient.city, patient.state, patient.zip_code].filter(Boolean).join(", ")}
+            {[patient.address, patient.city, patient.state, patient.zip_code].filter(Boolean).join(", ") || (
+              <span className="text-gray-400">No address recorded.</span>
+            )}
           </div>
         )}
       </div>
@@ -467,7 +516,9 @@ export function PatientDetail() {
         <span className={`text-sm font-medium ${patient.is_active ? "text-green-600" : "text-gray-400"}`}>
           {patient.is_active ? "Active" : "Inactive"}
         </span>
-        <button className="text-xs text-[#3b3f8c] hover:underline">Change</button>
+        <button onClick={() => setEditSection("basic")} className="text-xs text-[#3b3f8c] hover:underline">
+          Change
+        </button>
       </div>
     </div>
   );
@@ -486,7 +537,9 @@ export function PatientDetail() {
                 Blood Group: <span className="font-semibold">{patient.blood_group}</span>
               </span>
             )}
-            <Pencil className="h-3.5 w-3.5 text-gray-400 cursor-pointer" />
+            <button onClick={() => setEditSection("medical")} aria-label="Edit medical information">
+              <Pencil className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
+            </button>
           </div>
         </div>
         <div className="space-y-1 text-gray-600">
@@ -512,7 +565,9 @@ export function PatientDetail() {
       <div className="w-52 border border-gray-200 rounded-lg p-3 text-xs">
         <div className="flex items-center justify-between mb-2">
           <span className="font-semibold text-gray-700">Emergency Contact</span>
-          <Pencil className="h-3.5 w-3.5 text-gray-400 cursor-pointer" />
+          <button onClick={() => setEditSection("emergency")} aria-label="Edit emergency contact">
+            <Pencil className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
+          </button>
         </div>
         <div className="text-gray-600">
           {patient.emergency_contact_name ? (
@@ -654,24 +709,7 @@ export function PatientDetail() {
 
   // ── Docs & Images tab ───────────────────────────────────────────────────────
 
-  const docsTab = (
-    <div className="px-5 py-4">
-      <div className="flex items-center gap-2 mb-4 border-b border-gray-200 pb-3 overflow-x-auto">
-        {["All", "Documents", "Photos", "X-Rays", "Lab Reports", "OPG/CEPH", "3D Files", "Ortho Pre Treatment", "Consent Form"].map((t, i) => (
-          <button
-            key={t}
-            className={`flex-shrink-0 px-3 py-1.5 text-xs rounded ${i === 0 ? "border-b-2 border-[#1e2d5a] text-[#1e2d5a] font-semibold" : "text-gray-500 hover:text-gray-700"}`}
-          >
-            {t}
-          </button>
-        ))}
-        <button className="ml-auto flex-shrink-0 rounded bg-[#3b3f8c] px-3 py-1.5 text-xs text-white hover:bg-[#2d3170]">
-          Create Folder
-        </button>
-      </div>
-      <div className="text-center text-gray-400 text-sm py-16">No documents uploaded yet.</div>
-    </div>
-  );
+  const docsTab = <DocumentsTab patientId={patient.id} />;
 
   // ── Membership tab ──────────────────────────────────────────────────────────
 
@@ -763,10 +801,38 @@ export function PatientDetail() {
       {noteModal && (
         <NoteModal
           patientId={patient.id}
-          noteType={noteModal}
+          noteType={noteModal.type}
+          existing={noteModal.existing}
           createdBy={user?.id ?? null}
           onClose={() => setNoteModal(null)}
-          onSaved={(n) => setNotes((prev) => [n, ...prev])}
+          onSaved={(n) =>
+            setNotes((prev) =>
+              noteModal.existing
+                ? prev
+                    .map((x) => (x.id === n.id ? n : x))
+                    .sort((a, b) => b.note_date.localeCompare(a.note_date))
+                : [n, ...prev],
+            )
+          }
+        />
+      )}
+
+      {deletingNote && (
+        <ConfirmDialog
+          title="Delete note?"
+          message="This note will be permanently removed."
+          onClose={() => setDeletingNote(null)}
+          onConfirm={() => handleDeleteNote(deletingNote)}
+        />
+      )}
+
+      {editSection && (
+        <EditPatientModal
+          patientId={patient.id}
+          patient={patient}
+          initialSection={editSection}
+          onClose={() => setEditSection(null)}
+          onSaved={handlePatientSaved}
         />
       )}
     </div>

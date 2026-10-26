@@ -403,7 +403,9 @@ export function AddPatient() {
             Gender<span className="text-red-500">*</span>
           </span>
           <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {["Male", "Female", "Transgender", "Unknown"].map((g) => (
+            {/* Must match the gender_type enum (male | female | other) — the
+                old "Transgender" / "Unknown" options made the insert fail. */}
+            {["Male", "Female", "Other"].map((g) => (
               <label key={g} className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="radio"

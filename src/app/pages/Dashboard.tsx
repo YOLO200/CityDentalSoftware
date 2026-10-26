@@ -4,26 +4,9 @@ import { useNavigate } from "react-router";
 import { KPICard } from "../components/KPICard";
 import { supabase } from "../../lib/supabase";
 import { useBranch } from "../context/BranchContext";
-import {
-  ComposedChart,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+import { PracticeSummary } from "./dashboard/PracticeSummary";
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
-
-interface MonthPoint {
-  month: string;
-  gross: number;
-  expenses: number;
-  netAmount: number;
-}
 
 interface Appt {
   id: string;
@@ -50,14 +33,13 @@ interface Stats {
   pendingPayments: number;
   overduePatients: number;
   lowStock: number;
-  chart: MonthPoint[];
   appointments: Appt[];
 }
 
 const EMPTY: Stats = {
   patients: 0, patientsThisMonth: 0, apptsToday: 0, apptsYesterday: 0,
   revenueThisMonth: 0, revenueLastMonth: 0, pendingPayments: 0,
-  overduePatients: 0, lowStock: 0, chart: [], appointments: [],
+  overduePatients: 0, lowStock: 0, appointments: [],
 };
 
 function pct(current: number, previous: number): { change: string; trend: "up" | "down" } {
@@ -218,60 +200,7 @@ export function Dashboard() {
           />
         </div>
 
-        {/* Revenue Chart */}
-        <div className="mb-8 rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="mb-6">
-            <h2 className="text-xl">Practice Summary</h2>
-            <p className="text-sm text-muted-foreground">
-              Collections, expenses &amp; net — last {stats.chart.length} months
-            </p>
-          </div>
-          <div className="h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={stats.chart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                  axisLine={{ stroke: "#e2e8f0" }}
-                />
-                <YAxis
-                  yAxisId="left"
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                  axisLine={{ stroke: "#e2e8f0" }}
-                  tickFormatter={(v) => (v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${v / 1000}K`)}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                  axisLine={{ stroke: "#e2e8f0" }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "12px",
-                    padding: "12px",
-                  }}
-                  formatter={(value: number) => inr(value)}
-                />
-                <Legend wrapperStyle={{ paddingTop: "20px" }} iconType="circle" />
-                <Bar yAxisId="left" dataKey="gross" fill="#60a5fa" name="Collections" radius={[8, 8, 0, 0]} />
-                <Bar yAxisId="left" dataKey="expenses" fill="#bfdbfe" name="Expenses" radius={[8, 8, 0, 0]} />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="netAmount"
-                  stroke="#1e40af"
-                  strokeWidth={2}
-                  dot={{ fill: "#1e40af", r: 4 }}
-                  name="Net"
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <PracticeSummary branchId={selectedBranch.id} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Today's Appointments */}

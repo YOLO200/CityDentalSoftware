@@ -33,6 +33,26 @@ const storageKey = (userId: string) => `dentosys.selectedBranchId:${userId}`;
 const cacheKey = (userId: string) => `dentosys.branchList:${userId}`;
 
 /**
+ * Branch to open on a user's first login, before they have picked one.
+ * Matched on a name fragment rather than an id so it survives the branch being
+ * recreated, and tolerates the full name ("Speedwell Premium Division").
+ *
+ * Only a preference: a user without access to it never sees it in the list
+ * (RLS), and falls through to their first available branch instead.
+ */
+const DEFAULT_BRANCH_MATCH = "speedwell";
+
+/** Stored choice if still permitted, else the default branch, else the first. */
+function pickBranch(rows: Branch[], storedId: string | null): Branch | null {
+  return (
+    rows.find((b) => b.id === storedId) ??
+    rows.find((b) => b.name.toLowerCase().includes(DEFAULT_BRANCH_MATCH)) ??
+    rows[0] ??
+    null
+  );
+}
+
+/**
  * The branch list is tiny and changes rarely, but everything downstream waits
  * on it — the Dashboard cannot issue its query until a branch id exists. Seed
  * from cache so repeat visits skip that round trip entirely, then revalidate
@@ -74,19 +94,20 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     const cached = readCache(userId);
     const storedId = localStorage.getItem(storageKey(userId));
     setBranches(cached);
-    setSelected(cached.find((b) => b.id === storedId) ?? cached[0] ?? null);
+    setSelected(pickBranch(cached, storedId));
     setIsLoading(cached.length === 0);
 
+    // my_branches(), not a select on public.branches. The branches_select
+    // policy also admits anyone with settings:manage — so Settings → Clinics
+    // can administer every branch — and reading the table here offered an
+    // admin branches that dashboard_stats then refused with
+    // "not authorised for this branch". The RPC answers the narrower question:
+    // which branches may this user actually work in.
     supabase
-      .from("branches")
-      .select("id, name")
-      .eq("status", "Active")
-      .order("name")
+      .rpc("my_branches")
       .then(({ data }) => {
         if (cancelled) return;
-        // RLS already limits this to branches the user may see, so the
-        // selector lists exactly what they are allowed to work in.
-        const rows = data ?? [];
+        const rows = (data as Branch[] | null) ?? [];
         setBranches(rows);
         localStorage.setItem(cacheKey(userId), JSON.stringify(rows));
 
@@ -96,7 +117,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
         setSelected((prev) => {
           const stillExists = prev && rows.find((b) => b.id === prev.id);
           if (stillExists) return stillExists;
-          return rows.find((b) => b.id === storedId) ?? rows[0] ?? null;
+          return pickBranch(rows, storedId);
         });
         setIsLoading(false);
       });

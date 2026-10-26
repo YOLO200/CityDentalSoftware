@@ -19,13 +19,15 @@ interface Props {
   /** Current user id, stored as created_by so authors can edit their own notes. */
   createdBy: string | null;
   onClose: () => void;
-  /** Called with the inserted row so the panel can prepend it without refetching. */
+  /** When set, the modal edits this note instead of adding a new one. */
+  existing?: PatientNote;
+  /** Called with the saved row so the panel can update without refetching. */
   onSaved: (note: PatientNote) => void;
 }
 
 const TITLES: Record<NoteType, string> = {
-  social: "Add Social Notes",
-  internal: "Add Internal Notes",
+  social: "Social Notes",
+  internal: "Internal Notes",
 };
 
 /** Local-time YYYY-MM-DD. `toISOString()` would shift the date in IST. */
@@ -35,9 +37,10 @@ function todayLocal(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function NoteModal({ patientId, noteType, createdBy, onClose, onSaved }: Props) {
-  const [noteDate, setNoteDate] = useState(todayLocal);
-  const [note, setNote] = useState("");
+export function NoteModal({ patientId, noteType, createdBy, existing, onClose, onSaved }: Props) {
+  const [noteDate, setNoteDate] = useState(() => existing?.note_date ?? todayLocal());
+  const [note, setNote] = useState(existing?.note ?? "");
+  const title = `${existing ? "Edit" : "Add"} ${TITLES[noteType]}`;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,20 +66,34 @@ export function NoteModal({ patientId, noteType, createdBy, onClose, onSaved }: 
     setSaving(true);
     setError(null);
 
-    const { data, error: err } = await supabase
-      .from("patient_notes")
-      .insert({
-        patient_id: patientId,
-        note_type: noteType,
-        note_date: noteDate,
-        note: note.trim(),
-        created_by: createdBy,
-      })
-      .select("id, patient_id, note_type, note_date, note, created_at")
-      .single();
+    const columns = "id, patient_id, note_type, note_date, note, created_at";
+    const { data, error: err } = existing
+      ? await supabase
+          .from("patient_notes")
+          .update({ note_date: noteDate, note: note.trim() })
+          .eq("id", existing.id)
+          .select(columns)
+          .maybeSingle()
+      : await supabase
+          .from("patient_notes")
+          .insert({
+            patient_id: patientId,
+            note_type: noteType,
+            note_date: noteDate,
+            note: note.trim(),
+            created_by: createdBy,
+          })
+          .select(columns)
+          .single();
 
     if (err) {
       setError(err.message);
+      setSaving(false);
+      return;
+    }
+    // RLS turns a forbidden update into zero rows, not an error.
+    if (!data) {
+      setError("You don't have permission to edit this note.");
       setSaving(false);
       return;
     }
@@ -95,10 +112,10 @@ export function NoteModal({ patientId, noteType, createdBy, onClose, onSaved }: 
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={TITLES[noteType]}
+        aria-label={title}
       >
         <div className="relative mb-6 flex items-center justify-center">
-          <h2 className="text-base font-semibold text-[#1e2d5a]">{TITLES[noteType]}</h2>
+          <h2 className="text-base font-semibold text-[#1e2d5a]">{title}</h2>
           <button
             onClick={onClose}
             aria-label="Close"

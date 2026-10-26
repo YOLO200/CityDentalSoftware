@@ -10,6 +10,7 @@ export function Header() {
   const { user } = useAuth();
   const { branches, selectedBranch, setSelectedBranch, isLoading } = useBranch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const canSwitchBranch = branches.length > 1;
   const [profileName, setProfileName] = useState("");
   const [profileRole, setProfileRole] = useState("");
 
@@ -33,24 +34,33 @@ export function Header() {
       <div className="flex flex-1 items-center gap-4">
         <h1 className="text-xl font-semibold text-[#2563eb]">Dentosys</h1>
         
-        {/* Branch Selector Dropdown */}
+        {/* Branch selector. With access to one branch (or none) there is nothing
+            to choose between, so it renders as a plain label — no chevron, not
+            clickable — rather than a dropdown that opens onto a single item. */}
         <div className="relative">
-          <button
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm hover:bg-secondary transition-colors"
-          >
-            <MapPin className="h-4 w-4 text-primary" />
-            {/* "No branch assigned" is a real state, not a slow load: RLS
-                scopes branches to the user's assignments, so an unassigned user
-                legitimately has none. Showing "Loading…" forever would read as
-                a hang. */}
-            <span className="font-medium">
-              {selectedBranch?.name ?? (isLoading ? "Loading…" : "No branch assigned")}
-            </span>
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          </button>
-          
-          {isDropdownOpen && (
+          {/* "No branch assigned" is a real state, not a slow load: RLS scopes
+              branches to the user's assignments, so an unassigned user
+              legitimately has none. Showing "Loading…" forever would read as a
+              hang. */}
+          {canSwitchBranch ? (
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm hover:bg-secondary transition-colors"
+            >
+              <MapPin className="h-4 w-4 text-primary" />
+              <span className="font-medium">{selectedBranch?.name}</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm">
+              <MapPin className="h-4 w-4 text-primary" />
+              <span className="font-medium">
+                {selectedBranch?.name ?? (isLoading ? "Loading…" : "No branch assigned")}
+              </span>
+            </div>
+          )}
+
+          {isDropdownOpen && canSwitchBranch && (
             <>
               {/* Backdrop */}
               <div 
@@ -79,13 +89,6 @@ export function Header() {
                     {branch.name}
                   </button>
                 ))}
-                {branches.length === 0 && (
-                  <div className="px-4 py-3 text-xs text-muted-foreground">
-                    {isLoading
-                      ? "Loading…"
-                      : "You are not assigned to any branch. Ask an administrator for access."}
-                  </div>
-                )}
               </div>
             </>
           )}
