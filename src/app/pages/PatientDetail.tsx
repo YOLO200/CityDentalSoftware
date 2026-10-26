@@ -19,16 +19,6 @@ import {
   Play,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-<<<<<<< Updated upstream
-=======
-import { useAuth } from "../context/AuthContext";
-import { useBranch } from "../context/BranchContext";
-import { NoteModal, type NoteType, type PatientNote } from "./patient/NoteModal";
-import { EditPatientModal, type EditablePatient, type EditSection } from "./patient/EditPatientModal";
-import { DocumentsTab } from "./patient/DocumentsTab";
-import { VisitsTab } from "./patient/VisitsTab";
-import { ConfirmDialog } from "./patient/ConfirmDialog";
->>>>>>> Stashed changes
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -146,7 +136,6 @@ export function PatientDetail() {
 
   useEffect(() => {
     if (!id) return;
-<<<<<<< Updated upstream
     supabase
       .from("patients")
       .select("*")
@@ -156,53 +145,6 @@ export function PatientDetail() {
         setPatient(data as PatientData);
         setIsLoading(false);
       });
-=======
-    let cancelled = false;
-
-    (async () => {
-      const [patientRes, rxRes, receiptRes, notesRes] = await Promise.all([
-        supabase
-          .from("patients")
-          .select("*, branches(name)")
-          .eq("id", id)
-          .single(),
-        // "*" rather than a column list: visit_id only exists once 023 has run,
-        // and naming it would fail the query before then.
-        supabase
-          .from("prescriptions")
-          .select("*")
-          .eq("patient_id", id)
-          .order("date", { ascending: false }),
-        supabase
-          .from("receipts")
-          .select("id, receipt_number, mode, amount, notes, date")
-          .eq("patient_id", id)
-          .order("date", { ascending: false }),
-        supabase
-          .from("patient_notes")
-          .select("id, patient_id, note_type, note_date, note, created_at")
-          .eq("patient_id", id)
-          .order("note_date", { ascending: false }),
-      ]);
-
-      if (cancelled) return;
-      setPatient(patientRes.data as PatientData | null);
-      // Prescriptions written as part of a visit are shown inside that visit;
-      // this list keeps only the standalone (pre-visits) ones.
-      setPrescriptions(
-        ((rxRes.data as (PrescriptionRow & { visit_id?: string | null })[] | null) ?? []).filter(
-          (r) => !r.visit_id,
-        ),
-      );
-      setReceipts((receiptRes.data as ReceiptRow[] | null) ?? []);
-      setNotes((notesRes.data as PatientNote[] | null) ?? []);
-      setIsLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
->>>>>>> Stashed changes
   }, [id]);
 
   if (isLoading) {
@@ -458,34 +400,11 @@ export function PatientDetail() {
             <Pencil className="h-3.5 w-3.5 text-gray-400 cursor-pointer" />
           </div>
         </div>
-<<<<<<< Updated upstream
         <div className="flex gap-6 text-[#3b3f8c]">
           <button className="hover:underline">History</button>
           <button className="hover:underline">Dental</button>
           <button className="hover:underline">Allergies</button>
           <button className="hover:underline">Habits</button>
-=======
-        <div className="space-y-1 text-gray-600">
-          {patient.medical_conditions && (
-            <div><span className="text-gray-400">History: </span>{patient.medical_conditions}</div>
-          )}
-          {patient.allergies && patient.allergies.length > 0 && (
-            <div><span className="text-gray-400">Allergies: </span>{patient.allergies.join(", ")}</div>
-          )}
-          {patient.current_medications && (
-            <div><span className="text-gray-400">Medications: </span>{patient.current_medications}</div>
-          )}
-          {patient.habits && (
-            <div><span className="text-gray-400">Habits: </span>{patient.habits}</div>
-          )}
-          {!patient.blood_group &&
-            !patient.medical_conditions &&
-            !(patient.allergies && patient.allergies.length > 0) &&
-            !patient.current_medications &&
-            !patient.habits && (
-              <div className="text-gray-400">No medical information recorded.</div>
-            )}
->>>>>>> Stashed changes
         </div>
       </div>
 
@@ -521,7 +440,6 @@ export function PatientDetail() {
   );
 
   // ── Visits tab ──────────────────────────────────────────────────────────────
-<<<<<<< Updated upstream
 
   const visitsTab = (
     <div className="px-5 py-4 space-y-4">
@@ -542,63 +460,6 @@ export function PatientDetail() {
             <tr>
               {["#", "Surface", "Pop", "TOP", "Pulp Sensibility", "Conclusion", "Files"].map((h) => (
                 <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
-=======
-  //
-  // Visits (clinical note, treatment plan/done, package, prescriptions,
-  // instructions) come from migration 023 — see patient/VisitsTab.tsx. Below
-  // them: prescriptions recorded outside any visit, and receipts.
-
-  const visitsTab = (
-    <div className="px-5 py-4 space-y-4">
-      <VisitsTab
-        patientId={patient.id}
-        patientBranchId={patient.branch_id}
-        onUpdateMedical={() => setEditSection("medical")}
-      />
-
-      {/* Standalone prescriptions — ones recorded before visits existed. */}
-      {prescriptions.length > 0 && (<>
-      <SectionHeader
-        color="bg-blue-500"
-        title="PRESCRIPTION"
-        extra={
-          <div className="ml-auto flex gap-2">
-            <button className="rounded p-1 hover:bg-gray-100">
-              <Share2 className="h-3.5 w-3.5 text-gray-400" />
-            </button>
-            <button className="rounded p-1 hover:bg-gray-100">
-              <Printer className="h-3.5 w-3.5 text-gray-400" />
-            </button>
-          </div>
-        }
-      />
-        <div className="overflow-x-auto rounded border border-gray-100">
-          <table className="w-full text-xs">
-            <thead className="bg-gray-50 text-gray-500">
-              <tr>
-                {["Date", "Drug", "Dosage", "Duration", "Total Qty", "Instruction"].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {prescriptions.map((row) => (
-                <tr key={row.id} className="border-t border-gray-100">
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDate(row.date)}</td>
-                  <td className="px-3 py-2 max-w-[220px]">
-                    <div className="flex items-start gap-2">
-                      <div className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-gray-400 text-[9px]">Rx</span>
-                      </div>
-                      <span className="leading-tight">{row.drug_name ?? "—"}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-gray-600">{row.dosage ?? "—"}</td>
-                  <td className="px-3 py-2">{row.duration ?? "—"}</td>
-                  <td className="px-3 py-2">{row.quantity ?? ""}</td>
-                  <td className="px-3 py-2 text-gray-600">{row.instructions ?? ""}</td>
-                </tr>
->>>>>>> Stashed changes
               ))}
             </tr>
           </thead>
@@ -724,7 +585,6 @@ export function PatientDetail() {
           <button className="rounded p-1 hover:bg-gray-100"><Share2 className="h-3.5 w-3.5 text-gray-400" /></button>
           <button className="rounded p-1 hover:bg-gray-100"><Printer className="h-3.5 w-3.5 text-gray-400" /></button>
         </div>
-<<<<<<< Updated upstream
       } />
       <div className="overflow-x-auto rounded border border-gray-100">
         <table className="w-full text-xs">
@@ -755,9 +615,6 @@ export function PatientDetail() {
           </tbody>
         </table>
       </div>
-=======
-      </>)}
->>>>>>> Stashed changes
 
       {/* Receipts */}
       <SectionHeader color="bg-green-500" title="RECEIPTS, REFUNDS, CREDIT NOTES" />
