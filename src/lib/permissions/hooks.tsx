@@ -3,6 +3,11 @@ import {
 } from "react";
 import { supabase } from "../supabase";
 import type { Module, Action } from "./types";
+import {
+  buildPermissionMap, mergeFieldPermissions,
+  checkPermission, checkFieldView, checkFieldEdit,
+  type FieldMap, type PermissionMap,
+} from "./access";
 
 interface PermissionsCtx {
   hasPermission:  (module: Module | string, action: Action | string) => boolean;
@@ -27,8 +32,8 @@ const Ctx = createContext<PermissionsCtx>({
 });
 
 export function PermissionProvider({ children }: { children: ReactNode }) {
-  const [perms,      setPerms]      = useState<Record<string, boolean>>({});
-  const [fields,     setFields]     = useState<Record<string, { can_view: boolean; can_edit: boolean }>>({});
+  const [perms,      setPerms]      = useState<PermissionMap>({});
+  const [fields,     setFields]     = useState<FieldMap>({});
   const [userRoles,  setUserRoles]  = useState<string[]>([]);
   const [userClinics,setUserClinics]= useState<string[]>([]);
   const [isLoading,  setIsLoading]  = useState(true);
@@ -72,12 +77,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
         .in("role_id", roleIds)
         .eq("allowed", true);
 
-      const permMap: Record<string, boolean> = {};
-      (rpRows ?? []).forEach((rp: any) => {
-        if (rp.permissions)
-          permMap[`${rp.permissions.module}:${rp.permissions.action}`] = true;
-      });
-      if (!cancelled) setPerms(permMap);
+      if (!cancelled) setPerms(buildPermissionMap(rpRows as any));
 
       // Field-level permissions (union across roles)
       const { data: fpRows } = await supabase
@@ -85,14 +85,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
         .select("resource, field_name, can_view, can_edit")
         .in("role_id", roleIds);
 
-      const fieldMap: Record<string, { can_view: boolean; can_edit: boolean }> = {};
-      (fpRows ?? []).forEach((fp: any) => {
-        const key = `${fp.resource}:${fp.field_name}`;
-        if (!fieldMap[key]) fieldMap[key] = { can_view: false, can_edit: false };
-        if (fp.can_view) fieldMap[key].can_view = true;
-        if (fp.can_edit) fieldMap[key].can_edit = true;
-      });
-      if (!cancelled) setFields(fieldMap);
+      if (!cancelled) setFields(mergeFieldPermissions(fpRows));
 
       if (!cancelled) setIsLoading(false);
     };
@@ -100,21 +93,17 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [tick]);
 
-  const hasPermission = useCallback((module: string, action: string) => {
-    if (isSuper) return true;
-    return !!perms[`${module}:${action}`];
-  }, [perms, isSuper]);
+  const hasPermission = useCallback(
+    (module: string, action: string) => checkPermission(perms, isSuper, module, action),
+    [perms, isSuper]);
 
-  const canViewField = useCallback((resource: string, field: string) => {
-    if (isSuper) return true;
-    // Default allow if no restriction row exists
-    return fields[`${resource}:${field}`]?.can_view ?? true;
-  }, [fields, isSuper]);
+  const canViewField = useCallback(
+    (resource: string, field: string) => checkFieldView(fields, isSuper, resource, field),
+    [fields, isSuper]);
 
-  const canEditField = useCallback((resource: string, field: string) => {
-    if (isSuper) return true;
-    return fields[`${resource}:${field}`]?.can_edit ?? false;
-  }, [fields, isSuper]);
+  const canEditField = useCallback(
+    (resource: string, field: string) => checkFieldEdit(fields, isSuper, resource, field),
+    [fields, isSuper]);
 
   return (
     <Ctx.Provider value={{ hasPermission, canViewField, canEditField, userRoles, userClinics, isLoading, isSuper, reload }}>

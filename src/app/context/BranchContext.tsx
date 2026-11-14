@@ -43,7 +43,7 @@ const cacheKey = (userId: string) => `dentosys.branchList:${userId}`;
 const DEFAULT_BRANCH_MATCH = "speedwell";
 
 /** Stored choice if still permitted, else the default branch, else the first. */
-function pickBranch(rows: Branch[], storedId: string | null): Branch | null {
+export function pickBranch(rows: Branch[], storedId: string | null): Branch | null {
   return (
     rows.find((b) => b.id === storedId) ??
     rows.find((b) => b.name.toLowerCase().includes(DEFAULT_BRANCH_MATCH)) ??

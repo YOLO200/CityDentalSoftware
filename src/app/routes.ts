@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 import { OnboardedRoute } from "./components/OnboardedRoute";
 import { AccountReadyRoute } from "./components/AccountReadyRoute";
+import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { Dashboard } from "./pages/Dashboard";
 import { Patients } from "./pages/Patients";
 import { AddPatient } from "./pages/AddPatient";
@@ -25,10 +26,11 @@ export const router = createBrowserRouter([
   // That made the set-password screen unreachable. It is not under
   // ProtectedRoute either — it handles the no-session case itself, showing an
   // "invalid or expired link" message.
-  { path: "/accept-invite", Component: AcceptInvite },
+  { path: "/accept-invite", Component: AcceptInvite, ErrorBoundary: RouteErrorBoundary },
   {
     // Public-only routes: redirect to / if already logged in
     Component: PublicRoute,
+    ErrorBoundary: RouteErrorBoundary,
     children: [
       // Public signup is deliberately absent: accounts are created only by
       // an admin issuing an invite (Settings -> Users).
@@ -38,6 +40,7 @@ export const router = createBrowserRouter([
   {
     // Protected routes: redirect to /login if not authenticated
     Component: ProtectedRoute,
+    ErrorBoundary: RouteErrorBoundary,
     children: [
       {
         // Blocks everything until an invited user has set a password.
