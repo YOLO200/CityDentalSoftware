@@ -33,6 +33,7 @@ npm run dev
 | `VITE_SUPABASE_URL` | yes | Supabase → Project Settings → API |
 | `VITE_SUPABASE_ANON_KEY` | yes | Supabase → Project Settings → API (the anon/public key) |
 | `VITE_SENTRY_DSN` | no | Sentry → project → Client Keys. Error reporting is off when empty. |
+| `VITE_DEMO_EMAIL`, `VITE_DEMO_PASSWORD` | no | The public demo account (migrations 025 and 026). The demo panel is hidden when empty. |
 
 Never put the Supabase **service-role** key in the frontend. It bypasses every RLS policy. It is only used server-side, inside the `invite-user` Edge Function.
 
@@ -97,7 +98,7 @@ The live Supabase database is the source of truth for the schema. Before writing
 
 **The `supabase/` folder is gitignored.** It exists only on the machine of whoever has been writing migrations. It holds:
 
-- `migrations/020_…` to `025_…`: the most recent migrations (branch selector, Practice Summary, notes/documents, visits, CRM and Patient Tracker, demo workspace). Earlier migrations (001–019) are not on disk; they were applied and their files removed.
+- `migrations/020_…` to `026_…`: the most recent migrations (branch selector, Practice Summary, notes/documents, visits, CRM and Patient Tracker, demo workspace, demo sandbox). Earlier migrations (001–019) are not on disk; they were applied and their files removed.
 - `VERIFY_MIGRATIONS.sql`: run it in the SQL editor to check that each migration's tables, policies and functions are present.
 - `SCHEMA_GAPS.md`: tables the code expects that do not exist.
 - `functions/invite-user/`: the Edge Function that creates accounts.
@@ -126,6 +127,18 @@ For demos, a separate **Dentosys Demo Clinic** branch holds sample data that alw
 The first time the demo workspace is opened each day, `refresh_demo_data()` rebuilds about five months of history plus last week, this week and next week around today's date (India time). Today's appointments move from Confirmed to Arrived, In Treatment and Completed as the day goes on. Anything added in the demo is cleared at the next daily rebuild, apart from patients.
 
 The demo account is assigned only to the demo branch, so branch-level RLS keeps it away from real patients, and real staff never see demo data. New staff are never offered the demo branch during onboarding. To force a rebuild, run `update public.demo_state set refreshed_on = null;`.
+
+### Public demo credentials
+
+Set `VITE_DEMO_EMAIL` and `VITE_DEMO_PASSWORD` (locally in `.env.local` and in Vercel) to show a **Try the live demo** panel on the login page, with the credentials and a one-click sign-in, and a **Try the live demo** button on the landing page.
+
+Anyone can use a published password directly against the Supabase API, not just the website. So before publishing, run `026_public_demo_sandbox.sql`. It:
+
+- adds a restrictive `demo_sandbox` policy to every public table, limiting the demo account to demo-branch rows (no real patients, staff profiles, CRM opportunities or campaigns);
+- blocks the demo account from Storage uploads;
+- locks its password and email with a trigger on `auth.users`.
+
+Re-run its DO block whenever a new table is added. Changing the demo password then needs the SQL override documented at the bottom of the migration.
 
 ## Testing
 

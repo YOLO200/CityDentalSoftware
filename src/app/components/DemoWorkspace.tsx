@@ -61,7 +61,7 @@ export function DemoBanner() {
     <div className="flex items-center justify-center gap-2 bg-teal-700 px-4 py-1.5 text-center text-xs text-white">
       <FlaskConical className="h-3.5 w-3.5 flex-shrink-0" />
       <span>
-        <span className="font-semibold">Demo workspace.</span> Sample patients and appointments, refreshed daily around today's date. Anything you add is cleared at the next refresh.
+        <span className="font-semibold">Demo workspace.</span> Sample patients and appointments, refreshed daily around today's date. Anything you add, including new patients, is cleared at the next refresh.
       </span>
     </div>
   );

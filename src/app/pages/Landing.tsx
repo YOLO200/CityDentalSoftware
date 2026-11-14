@@ -77,6 +77,9 @@ const BARS = [42, 58, 74, 52, 68, 90];
 
 // ─── Motion helpers ───────────────────────────────────────────────────────────
 
+/** Set when a public demo account exists (see Login and migrations 025/026). */
+const HAS_DEMO = Boolean(import.meta.env.VITE_DEMO_EMAIL && import.meta.env.VITE_DEMO_PASSWORD);
+
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -315,9 +318,15 @@ export function Landing() {
                   {primary.label}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
-                <a href="#get-access" className="rounded-lg border border-gray-300 bg-white/70 px-5 py-3 text-sm font-medium text-[#1e2d5a] backdrop-blur transition hover:-translate-y-0.5 hover:border-teal-400">
-                  Get access
-                </a>
+                {HAS_DEMO ? (
+                  <Link to="/login#demo" className="rounded-lg border border-teal-300 bg-white/70 px-5 py-3 text-sm font-medium text-teal-800 backdrop-blur transition hover:-translate-y-0.5 hover:border-teal-500">
+                    Try the live demo
+                  </Link>
+                ) : (
+                  <a href="#get-access" className="rounded-lg border border-gray-300 bg-white/70 px-5 py-3 text-sm font-medium text-[#1e2d5a] backdrop-blur transition hover:-translate-y-0.5 hover:border-teal-400">
+                    Get access
+                  </a>
+                )}
               </div>
             </Reveal>
             <Reveal immediate delay={320}>

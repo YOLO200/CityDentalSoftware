@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Lock, Mail, MailCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, FlaskConical, Lock, Mail, MailCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 import "./landing.css";
@@ -16,6 +16,23 @@ const HIGHLIGHTS = [
   "Per-centre dashboards and patient tracker",
   "Invite-only accounts with role permissions",
 ];
+
+/**
+ * Public demo account (migrations 025 + 026 sandbox it to the demo branch and
+ * lock its password). Shown only when both are configured for the deployment.
+ */
+const DEMO_EMAIL = import.meta.env.VITE_DEMO_EMAIL as string | undefined;
+const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD as string | undefined;
+const HAS_DEMO = Boolean(DEMO_EMAIL && DEMO_PASSWORD);
+
+function CredentialField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-white/80 px-3 py-2 ring-1 ring-teal-100">
+      <div className="text-[10px] uppercase tracking-wide text-teal-700">{label}</div>
+      <div className="truncate font-mono text-sm text-gray-800">{value}</div>
+    </div>
+  );
+}
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white/80 py-2.5 pl-10 pr-4 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/15";
@@ -55,6 +72,17 @@ export function Login() {
     setResetSent(true);
   };
 
+  const handleDemoLogin = async () => {
+    if (!DEMO_EMAIL || !DEMO_PASSWORD) return;
+    setError(null);
+    setEmail(DEMO_EMAIL);
+    setIsLoading(true);
+    const err = await login(DEMO_EMAIL, DEMO_PASSWORD);
+    setIsLoading(false);
+    if (err) setError(`The demo account is unavailable right now (${err}).`);
+    else navigate("/");
+  };
+
   const switchMode = (next: "login" | "reset") => {
     setMode(next);
     setError(null);
@@ -82,9 +110,11 @@ export function Login() {
         </div>
       </header>
 
-      <main className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-16 pt-6 sm:px-6 lg:grid-cols-2 lg:pt-16">
+      <main className="relative mx-auto grid max-w-6xl items-start gap-12 px-4 pb-16 pt-6 sm:px-6 lg:grid-cols-2 lg:pt-16">
         {/* Left: brand message (desktop) */}
-        <section className="hidden lg:block">
+        {/* Top-aligned with the card (its padding is p-10), not centred against it —
+            the card grows when the demo panel is shown. */}
+        <section className="hidden lg:block lg:pt-10">
           <div className="reveal-now">
             <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white/70 px-3 py-1 text-xs font-medium text-teal-800 backdrop-blur">
               Staff sign-in
@@ -206,6 +236,30 @@ export function Login() {
               <button type="button" onClick={() => switchMode("login")} className="mt-5 flex items-center gap-1.5 text-sm font-medium text-teal-700 hover:underline">
                 <ArrowLeft className="h-4 w-4" /> Back to sign in
               </button>
+            )}
+
+            {mode === "login" && HAS_DEMO && (
+              <div id="demo" className="mt-6 scroll-mt-24 rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-cyan-50/60 p-4">
+                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-teal-900">
+                  <FlaskConical className="h-4 w-4" /> Try the live demo
+                </div>
+                <p className="mb-3 text-xs text-teal-900/80">
+                  A sample clinic with patients, appointments and reports. It resets every day, so feel free to click around.
+                </p>
+                <div className="space-y-2">
+                  <CredentialField label="Email" value={DEMO_EMAIL!} />
+                  <CredentialField label="Password" value={DEMO_PASSWORD!} />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDemoLogin}
+                  disabled={isLoading}
+                  className="group mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:bg-teal-800 disabled:translate-y-0 disabled:opacity-60"
+                >
+                  {isLoading ? "Signing in…" : "Sign in to the demo"}
+                  {!isLoading && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />}
+                </button>
+              </div>
             )}
 
             {/* No self-serve signup: accounts exist only when an administrator invites them. */}
