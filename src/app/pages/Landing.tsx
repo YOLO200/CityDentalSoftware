@@ -258,7 +258,9 @@ export function Landing() {
   }, [hash]);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-white text-gray-800">
+    // overflow-x-clip, not -hidden: "hidden" makes this div a scroll container,
+    // which silently breaks the sticky header below.
+    <div className="min-h-screen overflow-x-clip bg-white text-gray-800">
       {/* Nav */}
       <header className={`sticky top-0 z-30 transition-all duration-300 ${scrolled ? "border-b border-gray-100 bg-white/85 shadow-sm backdrop-blur" : "bg-transparent"}`}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
@@ -492,9 +494,8 @@ export function Landing() {
       </section>
 
       <footer className="border-t border-gray-100">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs text-gray-500 sm:flex-row sm:px-6">
-          <span>© {new Date().getFullYear()} Dentosys. All rights reserved.</span>
-          <Link to="/login" className="hover:text-teal-700">Staff login</Link>
+        <div className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-gray-500 sm:px-6">
+          © {new Date().getFullYear()} Dentosys. All rights reserved.
         </div>
       </footer>
     </div>
