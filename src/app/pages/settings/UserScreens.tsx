@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 export { RolesPermissions } from "./RolesPermissionsScreen";
 import { supabase } from "../../../lib/supabase";
-import { useAuth } from "../../context/AuthContext";
 import { useBranches } from "../admin/primitives";
 import {
   SPageHeader, SFormCard, SInput, SSelect, STable, SModal, SBadge,

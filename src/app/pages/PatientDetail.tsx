@@ -75,22 +75,6 @@ function capitalize(s: string | null) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Collapsible({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border-b border-gray-100">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between py-3 text-sm font-semibold text-[#1e2d5a]"
-      >
-        {title}
-        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
-      {open && <div className="pb-3">{children}</div>}
-    </div>
-  );
-}
-
 function SectionHeader({ color, title, extra }: { color: string; title: string; extra?: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 mb-3 mt-5">

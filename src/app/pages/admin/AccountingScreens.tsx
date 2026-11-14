@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import {
   ADropdown, ADate, AInput, ATextarea, AdminTable, FilterBar, PageHeader,
@@ -8,15 +7,6 @@ import {
 } from "./primitives";
 
 const today = () => new Date().toISOString().split("T")[0];
-
-// shared patient search: returns [{id, label}]
-async function searchPatients(q: string) {
-  const { data } = await supabase.from("patients")
-    .select("id, first_name, last_name, phone")
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%`)
-    .limit(10);
-  return (data ?? []).map((p: any) => ({ id: p.id, label: `${p.first_name} ${p.last_name} (${p.phone})` }));
-}
 
 // ─── Credit Notes ─────────────────────────────────────────────────────────────
 
@@ -105,7 +95,7 @@ export function CreditNotes() {
         </FilterBar>
       </div>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={6} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Note #","Date","Patient","Amount","Reason","Status"]}
             rows={rows.map(r => [
@@ -167,7 +157,7 @@ export function Settlements() {
         <ADate label="To"   value={fTo}   onChange={setFTo} />
       </FilterBar>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={5} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Receipt #","Date","Patient","Amount","Mode"]}
             rows={rows.map(r => [
@@ -289,7 +279,7 @@ export function PaymentGatewayTransactions() {
         <ADate label="To"   value={fTo}   onChange={setFTo} />
       </FilterBar>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={6} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Txn ID","Date","Patient","Gateway","Amount","Status"]}
             rows={rows.map(r => [
@@ -452,7 +442,7 @@ export function CashBank() {
         </FilterBar>
       </div>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={5} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Date","Type","Amount","Description","Balance"]}
             rows={rows.map((r, i) => [
@@ -543,7 +533,7 @@ export function Journal() {
         </FilterBar>
       </div>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={5} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Date","Debit Account","Credit Account","Amount","Narration"]}
             rows={rows.map(r => [

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -104,7 +104,8 @@ export function Login() {
         </div>
 
         <p className="mt-8 text-center text-xs text-muted-foreground">
-          © 2026 Dentosys. All rights reserved.
+          <Link to="/welcome" className="hover:text-primary hover:underline">About Dentosys</Link>
+          {" · "}© 2026 Dentosys. All rights reserved.
         </p>
       </div>
     </div>

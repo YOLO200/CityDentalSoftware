@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import {
   ADropdown, ADate, ATextarea, PageHeader, FormCard, PrimaryButton, ResetButton,

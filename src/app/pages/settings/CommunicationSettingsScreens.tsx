@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { Send } from "lucide-react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import {
-  SPageHeader, SFormCard, SInput, SSelect, STextarea, STabs, STable, SModal,
-  SToggle, SActionRow, NewButton, SaveButton, ResetBtn,
+  SPageHeader, SFormCard, SInput, SSelect, STextarea, SModal, SToggle, SActionRow, SaveButton, ResetBtn,
 } from "./primitives";
 
 // ─── SMS Settings ─────────────────────────────────────────────────────────────

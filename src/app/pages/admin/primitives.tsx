@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown, Trash2, Plus, Upload } from "lucide-react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 
@@ -46,7 +45,6 @@ export { useAuth };
 export const PAYMENT_MODES = ["Cash", "Card", "Wallet", "Cheque/Online", "Others"];
 export const DEPARTMENTS   = ["OPD", "Lab", "Reception", "Surgery", "Sterilization"];
 export const LABS          = ["Select Lab", "DentaLab", "BrightSmile Lab", "Dental Pro Lab", "MaxiDent Labs"];
-export const STATUSES      = ["Active", "Inactive"];
 export const FREQ_OPTIONS  = ["Daily", "Weekly", "Fortnightly", "Monthly", "Quarterly", "Yearly"];
 
 // ─── Form primitives ──────────────────────────────────────────────────────────
@@ -174,7 +172,7 @@ export function AdminTable({ columns, rows }: {
   );
 }
 
-export function LoadingRows({ cols }: { cols: number }) {
+export function LoadingRows() {
   return (
     <div className="overflow-x-auto border border-gray-200 rounded-lg">
       <div className="flex items-center justify-center py-16">

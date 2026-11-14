@@ -20,7 +20,7 @@ import { InventoryCategories, Vendors, Units, StockThresholds } from "./settings
 // ── Lab Settings
 import { Labs, LabCategories, LabPricing } from "./settings/LabSettingsScreens";
 // ── System Settings
-import { BackupRestore, AuditLogs, Integrations, ApiKeys, SecuritySettings, SessionTimeout } from "./settings/SystemScreens";
+import { BackupRestore, AuditLogs, Integrations, SecuritySettings, SessionTimeout } from "./settings/SystemScreens";
 
 // ─── Navigation config ────────────────────────────────────────────────────────
 
@@ -121,7 +121,6 @@ const NAV: NavSection[] = [
       { id: "backup",    label: "Backup & Restore"  },
       { id: "audit",     label: "Audit Logs"        },
       { id: "integrations",label: "Integrations"   },
-      { id: "api-keys",  label: "API Keys"          },
       { id: "security",  label: "Security Settings" },
       { id: "session",   label: "Session Timeout"   },
     ],
@@ -187,7 +186,6 @@ function renderScreen(id: string) {
     case "backup":         return <BackupRestore />;
     case "audit":          return <AuditLogs />;
     case "integrations":   return <Integrations />;
-    case "api-keys":       return <ApiKeys />;
     case "security":       return <SecuritySettings />;
     case "session":        return <SessionTimeout />;
     default:               return <ClinicProfile />;

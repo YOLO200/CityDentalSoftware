@@ -1,89 +1,13 @@
 import { useState, useCallback, useEffect } from "react";
 import { Plus, MoreVertical } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import { useProfiles } from "../admin/primitives";
 import {
-  KPICard, CRMPageHeader, CRMTable, CRMFilterBar, CRMModal, KanbanCard,
-  CRMStatusBadge, PriorityBadge, PrimaryBtn, GhostBtn,
-  CInput, CSelect, CDate, CTextarea,
-  OPP_STAGES, TREATMENTS, PRIORITIES, fmtDate,
+  CRMPageHeader, CRMTable, CRMFilterBar, CRMModal, KanbanCard, CRMStatusBadge, PriorityBadge, PrimaryBtn, GhostBtn, CInput, CSelect, CDate, CTextarea, OPP_STAGES, TREATMENTS, PRIORITIES, fmtDate,
 } from "./primitives";
 
 const today = () => new Date().toISOString().split("T")[0];
-const COLORS = ["#1e2d5a","#3b82f6","#8b5cf6","#f59e0b","#10b981","#ef4444"];
-
-// ─── Opportunity Dashboard ────────────────────────────────────────────────────
-
-export function OpportunityDashboard() {
-  const [opps,    setOpps]    = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.from("crm_opportunities").select("*").then(({ data }) => {
-      setOpps(data ?? []);
-      setLoading(false);
-    });
-  }, []);
-
-  const active    = opps.filter(o => o.stage !== "Converted" && o.stage !== "Lost");
-  const converted = opps.filter(o => o.stage === "Converted");
-  const lost      = opps.filter(o => o.stage === "Lost");
-  const pipeline  = active.reduce((s, o) => s + Number(o.estimated_value || 0), 0);
-
-  const byStage = OPP_STAGES.slice(0, -2).map(s => ({
-    stage: s.length > 14 ? s.slice(0, 14) + "…" : s,
-    count: opps.filter(o => o.stage === s).length,
-  }));
-
-  const doctorMap: Record<string, number> = {};
-  opps.forEach(o => { if (o.doctor_name) doctorMap[o.doctor_name] = (doctorMap[o.doctor_name] ?? 0) + 1; });
-  const byDoc = Object.entries(doctorMap).map(([doctor, count]) => ({ doctor: doctor.replace("Dr. ", ""), count }));
-
-  return (
-    <div className="space-y-5">
-      <CRMPageHeader title="Opportunity Dashboard" />
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KPICard label="Active Opportunities" value={active.length}                     color="text-[#1e2d5a]" />
-        <KPICard label="Pipeline Value"       value={`₹${(pipeline/1000).toFixed(0)}K`} color="text-blue-600" />
-        <KPICard label="Converted"            value={converted.length}                  color="text-green-600" />
-        <KPICard label="Lost"                 value={lost.length}                       color="text-red-500" />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-gray-600 mb-3">Pipeline by Stage</p>
-          {loading ? <div className="h-40 animate-pulse bg-gray-50 rounded" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={byStage}>
-                <XAxis dataKey="stage" tick={{ fontSize: 9 }} />
-                <YAxis tick={{ fontSize: 9 }} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#1e2d5a" radius={[4,4,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-gray-600 mb-3">Opportunities by Doctor</p>
-          {loading ? <div className="h-40 animate-pulse bg-gray-50 rounded" /> : byDoc.length === 0
-            ? <div className="flex items-center justify-center h-40 text-gray-300 text-sm">No data yet</div>
-            : (
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={byDoc} dataKey="count" nameKey="doctor" cx="50%" cy="50%" outerRadius={70}
-                    label={({ doctor, count }) => `${doctor}: ${count}`} fontSize={9}>
-                    {byDoc.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Opportunity Pipeline (Kanban) ────────────────────────────────────────────
 
@@ -263,39 +187,3 @@ export function OpportunityList() {
     </div>
   );
 }
-
-// ─── Closed Won / Closed Lost ─────────────────────────────────────────────────
-
-function ClosedList({ title, stage }: { title: string; stage: string }) {
-  const [rows,    setRows]    = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from("crm_opportunities").select("*").eq("stage", stage).order("updated_at", { ascending: false });
-    setRows(data ?? []);
-    setLoading(false);
-  }, [stage]);
-
-  return (
-    <div>
-      <CRMPageHeader title={title} />
-      <div className="mb-3"><PrimaryBtn onClick={load}>Load {title}</PrimaryBtn></div>
-      <CRMTable loading={loading}
-        columns={["Opportunity","Treatment","Value","Doctor","Date"]}
-        rows={rows.map(o => [
-          <span className="font-medium">{o.title}</span>,
-          o.treatment_type ?? "—",
-          <span className={`font-semibold ${stage === "Converted" ? "text-green-600" : "text-red-500"}`}>
-            ₹{Number(o.estimated_value || 0).toLocaleString("en-IN")}
-          </span>,
-          o.doctor_name ?? "—",
-          fmtDate(o.follow_up_date),
-        ])}
-      />
-    </div>
-  );
-}
-
-export const ClosedWon  = () => <ClosedList title="Closed Won"  stage="Converted" />;
-export const ClosedLost = () => <ClosedList title="Closed Lost" stage="Lost" />;

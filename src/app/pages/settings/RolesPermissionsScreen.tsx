@@ -1,8 +1,6 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
-  Shield, Lock, Copy, Trash2, Edit3, Plus, Save, RotateCcw,
-  Search, Users, ChevronDown, AlertTriangle, CheckSquare,
-  X, Eye, EyeOff, Clock, Globe, Building2, UserCheck,
+  Shield, Lock, Copy, Trash2, Edit3, Plus, Save, RotateCcw, Search, Users, ChevronDown, AlertTriangle, CheckSquare, X, Eye, Clock, Globe, UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../../../lib/supabase";
@@ -123,125 +121,6 @@ const FIELD_SECTIONS = [
   },
 ];
 
-// Default permission matrix (keys: "module:action")
-function buildDefaultMatrix(): Record<string, Record<string, boolean>> {
-  const all  = (mods: string[], acts?: string[]) => Object.fromEntries(
-    (mods.length ? mods : MODULES.map(m => m.key)).flatMap(m =>
-      (acts ?? ACTIONS.map(a => a.key)).map(a => [`${m}:${a}`, true])
-    )
-  );
-  const none = () => Object.fromEntries(
-    MODULES.flatMap(m => ACTIONS.map(a => [`${m.key}:${a.key}`, false]))
-  );
-
-  const superAdmin = all(MODULES.map(m => m.key));
-
-  const clinicAdmin = { ...all(MODULES.map(m => m.key)) };
-  clinicAdmin["users_roles:manage"] = false;
-
-  const doctor = {
-    ...none(),
-    ...all(["dashboard","calendar"], ["view"]),
-    ...all(["patients"],         ["view","edit"]),
-    ...all(["appointments"],     ["view","create","edit","cancel"]),
-    ...all(["treatments"],       ["view","create","edit"]),
-    ...all(["clinical_notes"],   ["view","create","edit"]),
-    ...all(["prescriptions"],    ["view","create","edit","print"]),
-    "billing:view": true,
-    "documents:view": true, "documents:create": true,
-  };
-
-  const receptionist = {
-    ...none(),
-    ...all(["dashboard","calendar"],   ["view"]),
-    "calendar:create": true,
-    ...all(["patients"],               ["view","create","edit"]),
-    ...all(["appointments"],           ["view","create","edit","cancel","assign"]),
-    ...all(["communication"],          ["view","create"]),
-    "documents:view": true, "memberships:view": true,
-  };
-
-  const accountant = {
-    ...none(),
-    "dashboard:view": true,
-    "patients:view": true,
-    "appointments:view": true,
-    ...all(["billing"],  ["view","create","edit","approve","print"]),
-    ...all(["payments"], ["view","create","approve"]),
-    "reports:view": true, "reports:export": true,
-    "documents:view": true, "memberships:view": true, "memberships:create": true,
-  };
-
-  const inventory = {
-    ...none(),
-    "dashboard:view": true,
-    ...all(["inventory"], ["view","create","edit","delete","manage"]),
-    "reports:view": true,
-  };
-
-  const crm = {
-    ...none(),
-    "dashboard:view": true,
-    ...all(["crm"],           ["view","create","edit","manage"]),
-    "patients:view": true,
-    ...all(["communication"], ["view","create","manage"]),
-    "memberships:view": true,
-  };
-
-  const lab = {
-    ...none(),
-    "dashboard:view": true,
-    ...all(["lab"],       ["view","create","edit","manage"]),
-    "patients:view": true, "documents:view": true,
-  };
-
-  const readonly = {
-    ...none(),
-    "dashboard:view": true, "calendar:view": true, "appointments:view": true,
-  };
-
-  return {
-    "super-admin":   superAdmin,
-    "clinic-admin":  clinicAdmin,
-    "doctor":        doctor,
-    "receptionist":  receptionist,
-    "accountant":    accountant,
-    "inventory-mgr": inventory,
-    "crm-exec":      crm,
-    "lab-coord":     lab,
-    "readonly":      readonly,
-  };
-}
-
-// Default field-permission state
-type FieldState = Record<string, Record<string, { can_view: boolean; can_edit: boolean }>>;
-function buildDefaultFieldPerms(): FieldState {
-  const base = () => Object.fromEntries(
-    FIELD_SECTIONS.flatMap(s => s.fields.map(f => [`${s.resource}:${f.key}`, { can_view: false, can_edit: false }]))
-  );
-  const doctor = base();
-  ["patients:view_mobile","patients:view_email","patients:view_address","patients:view_medical_history",
-   "patients:view_allergies","patients:view_treatment_notes","patients:view_billing_balance",
-   "patients:edit_medical_info","patients:edit_personal_info",
-   "clinical_notes:add_note","clinical_notes:edit_own_note","clinical_notes:delete_own_note","clinical_notes:view_doctor_only",
-   "reports:view_own_reports"].forEach(k => {
-    const [r, f] = k.split(":");
-    if (doctor[`${r}:${f}`]) { doctor[`${r}:${f}`].can_view = true; doctor[`${r}:${f}`].can_edit = true; }
-  });
-
-  const accountant = base();
-  ["billing:view_invoice_amount","billing:add_payment","billing:apply_discount","billing:issue_refund","billing:cancel_invoice","billing:export_financial_reports",
-   "patients:view_mobile","patients:view_email","patients:view_billing_balance",
-   "reports:view_own_reports","reports:view_clinic_reports","reports:export_reports"].forEach(k => {
-    const [r, f] = k.split(":");
-    if (accountant[`${r}:${f}`]) { accountant[`${r}:${f}`].can_view = true; accountant[`${r}:${f}`].can_edit = true; }
-  });
-
-  return { "super-admin": base(), "clinic-admin": base(), "doctor": doctor,
-    "receptionist": base(), "accountant": accountant, "inventory-mgr": base(),
-    "crm-exec": base(), "lab-coord": base(), "readonly": base() };
-}
-
 const DEFAULT_ROLES: RoleLocal[] = [
   { id: "super-admin",   name: "Super Admin",       description: "Full access to everything across all clinics", is_system: true,  active: true,  user_count: 2,  scope: "all",      data_scope: "all_patients"    },
   { id: "clinic-admin",  name: "Clinic Admin",       description: "Full access within assigned clinic(s)",        is_system: true,  active: true,  user_count: 3,  scope: "selected", data_scope: "clinic_patients" },
@@ -253,19 +132,6 @@ const DEFAULT_ROLES: RoleLocal[] = [
   { id: "lab-coord",     name: "Lab Coordinator",    description: "Lab orders, results, settings",               is_system: false, active: true,  user_count: 1,  scope: "selected", data_scope: "clinic_patients" },
   { id: "readonly",      name: "Read Only Staff",    description: "View dashboard and assigned schedules only",  is_system: false, active: false, user_count: 4,  scope: "own",      data_scope: "own_appointments" },
 ];
-
-const MOCK_USERS: Record<string, Array<{ id: string; name: string; email: string; clinic: string; status: string; last_login: string }>> = {
-  "doctor": [
-    { id: "u1", name: "Dr. Anand Jasani",   email: "anand@dentosys.in",   clinic: "Speedwell Premium", status: "Active",   last_login: "2026-07-07 09:32" },
-    { id: "u2", name: "Dr. Priya Patel",    email: "priya@dentosys.in",   clinic: "Virani Chowk",      status: "Active",   last_login: "2026-07-07 11:10" },
-    { id: "u3", name: "Dr. Michael Foster", email: "michael@dentosys.in", clinic: "Speedwell Premium", status: "Active",   last_login: "2026-07-06 14:45" },
-    { id: "u4", name: "Dr. Sarah Lee",      email: "sarah@dentosys.in",   clinic: "Kothariya",         status: "Inactive", last_login: "2026-06-30 08:00" },
-  ],
-  "receptionist": [
-    { id: "u5", name: "Meera Shah",    email: "meera@dentosys.in",  clinic: "Speedwell Premium", status: "Active", last_login: "2026-07-07 08:55" },
-    { id: "u6", name: "Kavya Doshi",   email: "kavya@dentosys.in",  clinic: "Virani Chowk",      status: "Active", last_login: "2026-07-07 09:01" },
-  ],
-};
 
 // ── Tiny primitives ────────────────────────────────────────────
 
@@ -447,9 +313,7 @@ function AssignUserModal({ roleName, onClose }: { roleName: string; onClose: () 
 
 // ── Permission Matrix ─────────────────────────────────────────
 
-function PermissionMatrix({ roleId, roleName, matrix, onChange }: {
-  roleId: string;
-  roleName: string;
+function PermissionMatrix({ matrix, onChange }: {
   matrix: Record<string, boolean>;
   onChange: (key: string, val: boolean) => void;
 }) {
@@ -564,8 +428,7 @@ function PermissionMatrix({ roleId, roleName, matrix, onChange }: {
 
 // ── Field Permissions Panel ───────────────────────────────────
 
-function FieldPermissionsPanel({ roleId, fieldPerms, onChange }: {
-  roleId: string;
+function FieldPermissionsPanel({ fieldPerms, onChange }: {
   fieldPerms: Record<string, { can_view: boolean; can_edit: boolean }>;
   onChange: (key: string, cap: "can_view" | "can_edit", val: boolean) => void;
 }) {
@@ -683,8 +546,6 @@ function RoleDetailPanel({ role, matrix, fieldPerms, activeTab, onTabChange, onM
         {/* ── Permissions tab ── */}
         {activeTab === "permissions" && (
           <PermissionMatrix
-            roleId={role.id}
-            roleName={role.name}
             matrix={matrix}
             onChange={onMatrixChange}
           />
@@ -692,7 +553,7 @@ function RoleDetailPanel({ role, matrix, fieldPerms, activeTab, onTabChange, onM
 
         {/* ── Field Access tab ── */}
         {activeTab === "fields" && (
-          <FieldPermissionsPanel roleId={role.id} fieldPerms={fieldPerms} onChange={onFieldChange} />
+          <FieldPermissionsPanel fieldPerms={fieldPerms} onChange={onFieldChange} />
         )}
 
         {/* ── Users tab ── */}

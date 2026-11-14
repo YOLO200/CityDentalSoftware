@@ -323,29 +323,6 @@ export function SBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
-export function SEmptyState({ message = "No records found", icon = "📋" }: { message?: string; icon?: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 gap-3 bg-white border border-gray-200 rounded-xl">
-      <span className="text-4xl opacity-20">{icon}</span>
-      <p className="text-gray-300 text-sm">{message}</p>
-    </div>
-  );
-}
-
-// ─── Section divider ──────────────────────────────────────────────────────────
-
-export function SDivider({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3 my-4">
-      <div className="flex-1 h-px bg-gray-200" />
-      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{label}</span>
-      <div className="flex-1 h-px bg-gray-200" />
-    </div>
-  );
-}
-
 // ─── Action button row ────────────────────────────────────────────────────────
 
 export function SActionRow({ onSave, onReset, saving = false, saveLabel = "SAVE CHANGES" }: {

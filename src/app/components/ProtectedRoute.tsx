@@ -1,8 +1,9 @@
-import { Navigate, Outlet } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { useAuth } from "../context/AuthContext";
 
 export function ProtectedRoute() {
   const { user, isLoading } = useAuth();
+  const { pathname } = useLocation();
 
   if (isLoading) {
     return (
@@ -12,5 +13,8 @@ export function ProtectedRoute() {
     );
   }
 
-  return user ? <Outlet /> : <Navigate to="/login" replace />;
+  if (user) return <Outlet />;
+  // A visitor opening the bare site gets the landing page; a deep link
+  // (/patients/…) goes straight to login, since they're clearly staff.
+  return <Navigate to={pathname === "/" ? "/welcome" : "/login"} replace />;
 }

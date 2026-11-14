@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   ChevronDown, ChevronRight, FileSpreadsheet, FileText, Printer,
   RotateCcw, Eye, MoreVertical, ArrowUpDown, Plus, HelpCircle,
@@ -103,18 +103,6 @@ const SIDEBAR = [
     { id: "item-purchase" as ReportId, label: "Item Purchase & Consumption" },
   ]},
 ];
-
-// ─── Shared hook: doctor profiles map ────────────────────────────────────────
-
-function useDoctorMap() {
-  const [map, setMap] = useState<Record<string, string>>({});
-  useEffect(() => {
-    supabase.from("profiles").select("id, name").then(({ data }) => {
-      if (data) setMap(Object.fromEntries(data.map(p => [p.id, p.name as string])));
-    });
-  }, []);
-  return map;
-}
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -947,7 +935,7 @@ function AppointmentsTable({ dateField }: { dateField: "appointment_date" | "cre
           <tbody>
             {loading && <tr><td colSpan={11}><LoadingState /></td></tr>}
             {!loading && (loaded ? data.length === 0 : true) && <tr><td colSpan={11}><EmptyState /></td></tr>}
-            {!loading && data.map((a, i) => (
+            {!loading && data.map((a) => (
               <tr key={a.id} className="hover:bg-blue-50/30">
                 <Td>{fmtDate(a.appointment_date)}</Td>
                 <Td><span className="font-mono">{fmtTime(a.start_time)}</span></Td>
@@ -1027,7 +1015,7 @@ function DailyActivityReport() {
           <tbody>
             {loading && <tr><td colSpan={7}><LoadingState /></td></tr>}
             {!loading && (loaded ? data.length === 0 : true) && <tr><td colSpan={7}><EmptyState /></td></tr>}
-            {!loading && data.map((a, i) => (
+            {!loading && data.map((a) => (
               <tr key={a.id} className="hover:bg-blue-50/30">
                 <Td><span className="font-mono">{fmtTime(a.start_time)}</span></Td>
                 <Td><span className="text-[#1e2d5a] font-medium">{a.doctor_name}</span></Td>
@@ -1320,7 +1308,7 @@ function TreatmentReport({ mode }: { mode: "done" | "open" | "plans" | "by-treat
           <tbody>
             {loading && <tr><td colSpan={7}><LoadingState /></td></tr>}
             {!loading && (loaded ? data.length === 0 : true) && <tr><td colSpan={7}><EmptyState /></td></tr>}
-            {!loading && data.map((a, i) => (
+            {!loading && data.map((a) => (
               <tr key={a.id} className="hover:bg-blue-50/30">
                 <Td>{fmtDate(a.appointment_date)}</Td>
                 <Td><span className="text-[#1e2d5a] font-medium">{a.doctor_name}</span></Td>

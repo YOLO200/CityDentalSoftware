@@ -1,16 +1,12 @@
 import { useState, useCallback, useEffect } from "react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
-import { useAuth } from "../../context/AuthContext";
 import {
-  SPageHeader, SFormCard, SInput, SSelect, SColorInput, STable, SModal,
-  SToggle, SBadge, SActionRow, NewButton, SaveButton, ResetBtn,
+  SPageHeader, SFormCard, SInput, SColorInput, STable, SModal, SToggle, SBadge, SActionRow, NewButton, SaveButton, ResetBtn,
 } from "./primitives";
 
 // ─── Appointment Categories + Colors + Duration (combined) ────────────────────
 
 export function AppointmentCategories() {
-  const { user }  = useAuth();
   const [rows,    setRows]    = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal,   setModal]   = useState(false);

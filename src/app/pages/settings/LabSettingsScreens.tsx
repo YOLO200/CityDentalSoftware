@@ -1,9 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import {
-  SPageHeader, SInput, SSelect, STextarea, STable, SModal,
-  SBadge, NewButton, SaveButton, ResetBtn,
+  SPageHeader, SInput, STable, SModal, SBadge, NewButton, SaveButton, ResetBtn,
 } from "./primitives";
 
 // ─── Labs ─────────────────────────────────────────────────────────────────────

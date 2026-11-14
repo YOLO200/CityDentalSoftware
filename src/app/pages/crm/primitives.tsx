@@ -1,16 +1,10 @@
-import { useState } from "react";
-import { ChevronDown, X, Filter, ArrowUpDown } from "lucide-react";
+import { ChevronDown, X, Filter } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// Must match the Postgres lead_status enum — "Follow-up Pending" is not a value.
-export const LEAD_STATUSES  = ["New", "Contacted", "Interested", "Converted", "Lost"];
 export const PRIORITIES     = ["High", "Medium", "Low"];
-export const LEAD_SOURCES   = ["Instagram", "Facebook", "Google Ads", "Walk-in", "Doctor Referral", "Existing Patient", "Website", "WhatsApp", "Other"];
 export const TREATMENTS     = ["Dental Implant", "Root Canal", "Braces / Aligners", "Teeth Whitening", "Crown & Bridge", "Scaling & Cleaning", "Veneers", "Full Mouth Rehab", "Extraction", "Dentures", "Other"];
-export const BUDGET_RANGES  = ["< ₹5,000", "₹5,000–₹15,000", "₹15,000–₹30,000", "₹30,000–₹50,000", "> ₹50,000"];
 export const OPP_STAGES     = ["New Inquiry", "Consultation Scheduled", "Treatment Discussed", "Negotiation", "Payment Pending", "Converted", "Lost"];
-export const TASK_CATEGORIES= ["Follow-up Call", "Pending Consultation", "Overdue Payment", "Recall Appointment", "Other"];
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -247,42 +241,12 @@ export function CRMModal({ title, open, onClose, children, width = "max-w-xl" }:
   );
 }
 
-// ─── Activity timeline ────────────────────────────────────────────────────────
-
-export function ActivityTimeline({ items }: { items: { date: string; type: string; note: string; user: string }[] }) {
-  const typeColor: Record<string, string> = {
-    Call: "bg-blue-500", WhatsApp: "bg-green-500", Email: "bg-purple-500",
-    Visit: "bg-amber-500", Note: "bg-gray-400", "Follow-up": "bg-orange-500",
-  };
-  return (
-    <div className="space-y-3">
-      {items.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No activity yet</p>}
-      {items.map((item, i) => (
-        <div key={i} className="flex gap-3">
-          <div className="flex flex-col items-center">
-            <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5 ${typeColor[item.type] ?? "bg-gray-400"}`} />
-            {i < items.length - 1 && <div className="w-px flex-1 bg-gray-200 mt-1" />}
-          </div>
-          <div className="flex-1 pb-3">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[10px] font-semibold text-gray-700">{item.type}</span>
-              <span className="text-[10px] text-gray-400">{item.date}</span>
-              <span className="text-[10px] text-gray-400">by {item.user}</span>
-            </div>
-            <p className="text-xs text-gray-600">{item.note}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Kanban card ──────────────────────────────────────────────────────────────
 
-export function KanbanCard({ item, onMoveLeft, onMoveRight, stages, onEdit }: {
+export function KanbanCard({ item, onMoveLeft, onMoveRight, stages }: {
   item: any;
   onMoveLeft?: () => void; onMoveRight?: () => void;
-  stages: string[]; onEdit?: () => void;
+  stages: string[];
 }) {
   const stageIdx = stages.indexOf(item.stage);
   return (
@@ -318,18 +282,6 @@ export function CRMEmptyState({ message = "Looks like there's nothing to show he
     <div className="flex flex-col items-center justify-center py-20 gap-3">
       <span className="text-5xl opacity-20">{icon}</span>
       <p className="text-gray-300 text-base">{message}</p>
-    </div>
-  );
-}
-
-// ─── Star rating ──────────────────────────────────────────────────────────────
-
-export function StarRating({ rating }: { rating: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map(i => (
-        <span key={i} className={`text-sm ${i <= rating ? "text-amber-400" : "text-gray-200"}`}>★</span>
-      ))}
     </div>
   );
 }

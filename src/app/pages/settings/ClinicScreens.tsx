@@ -1,10 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import { useProfiles } from "../admin/primitives";
 import {
-  SPageHeader, SFormCard, SInput, SSelect, STextarea, SColorInput, SUploadBox,
-  SToggle, STable, SModal, SBadge, SActionRow, NewButton, SaveButton, ResetBtn, fmtDate,
+  SPageHeader, SFormCard, SInput, SSelect, SColorInput, SUploadBox, SToggle, STable, SModal, SBadge, SActionRow, NewButton, SaveButton, ResetBtn,
 } from "./primitives";
 
 const TIMEZONES = ["Asia/Kolkata","Asia/Dubai","Asia/Singapore","Europe/London","America/New_York"];

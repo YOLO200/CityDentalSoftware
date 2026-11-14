@@ -5,20 +5,18 @@ import { PublicRoute } from "./components/PublicRoute";
 import { OnboardedRoute } from "./components/OnboardedRoute";
 import { AccountReadyRoute } from "./components/AccountReadyRoute";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
-import { Dashboard } from "./pages/Dashboard";
-import { Patients } from "./pages/Patients";
-import { AddPatient } from "./pages/AddPatient";
-import { Calendar } from "./pages/Calendar";
-import { Profile } from "./pages/Profile";
+import { PageSpinner } from "./components/PageSpinner";
 import { Login } from "./pages/Login";
+import { Landing } from "./pages/Landing";
 import { AcceptInvite } from "./pages/AcceptInvite";
-import { SetupProfile } from "./pages/SetupProfile";
-import { ComingSoon } from "./pages/ComingSoon";
-import { PatientDetail } from "./pages/PatientDetail";
-import { Reports } from "./pages/Reports";
-import { Admin } from "./pages/Admin";
-import CRM from "./pages/CRM";
-import Settings from "./pages/Settings";
+
+/**
+ * Pages inside the app are code-split: each loads on first visit instead of
+ * shipping in one bundle with the login and landing pages. The router keeps
+ * the current page on screen until the next one has loaded.
+ */
+const page = <M extends Record<string, unknown>>(load: () => Promise<M>, name: keyof M) =>
+  async () => ({ Component: (await load())[name] as React.ComponentType });
 
 export const router = createBrowserRouter([
   // Deliberately NOT under PublicRoute: the invite token creates a session
@@ -27,6 +25,10 @@ export const router = createBrowserRouter([
   // ProtectedRoute either — it handles the no-session case itself, showing an
   // "invalid or expired link" message.
   { path: "/accept-invite", Component: AcceptInvite, ErrorBoundary: RouteErrorBoundary },
+  // Capabilities page. Outside every guard so it renders at once instead of
+  // waiting on the session check; logged-out visitors to "/" are sent here by
+  // ProtectedRoute, and it offers "Open dashboard" to anyone signed in.
+  { path: "/welcome", Component: Landing, ErrorBoundary: RouteErrorBoundary },
   {
     // Public-only routes: redirect to / if already logged in
     Component: PublicRoute,
@@ -41,13 +43,15 @@ export const router = createBrowserRouter([
     // Protected routes: redirect to /login if not authenticated
     Component: ProtectedRoute,
     ErrorBoundary: RouteErrorBoundary,
+    // Shown on a cold load of a deep link while its page chunk downloads.
+    HydrateFallback: PageSpinner,
     children: [
       {
         // Blocks everything until an invited user has set a password.
         Component: AccountReadyRoute,
         children: [
           // Onboarding — no sidebar, accessible before profile is complete
-          { path: "/setup-profile", Component: SetupProfile },
+          { path: "/setup-profile", lazy: page(() => import("./pages/SetupProfile"), "SetupProfile") },
           {
             // Onboarded guard: redirects to /setup-profile if profile_complete is false
             Component: OnboardedRoute,
@@ -55,17 +59,17 @@ export const router = createBrowserRouter([
               {
                 Component: Layout,
                 children: [
-                  { path: "/", Component: Dashboard },
-                  { path: "/patients", Component: Patients },
-                  { path: "/patients/add", Component: AddPatient },
-                  { path: "/patients/:id", Component: PatientDetail },
-                  { path: "/calendar", Component: Calendar },
-                  { path: "/profile", Component: Profile },
-                  { path: "/reports", Component: Reports },
-                  { path: "/admin", Component: Admin },
-                  { path: "/crm", Component: CRM },
-                  { path: "/help", Component: ComingSoon },
-                  { path: "/settings", Component: Settings },
+                  { path: "/", lazy: page(() => import("./pages/Dashboard"), "Dashboard") },
+                  { path: "/patients", lazy: page(() => import("./pages/Patients"), "Patients") },
+                  { path: "/patients/add", lazy: page(() => import("./pages/AddPatient"), "AddPatient") },
+                  { path: "/patients/:id", lazy: page(() => import("./pages/PatientDetail"), "PatientDetail") },
+                  { path: "/calendar", lazy: page(() => import("./pages/Calendar"), "Calendar") },
+                  { path: "/profile", lazy: page(() => import("./pages/Profile"), "Profile") },
+                  { path: "/reports", lazy: page(() => import("./pages/Reports"), "Reports") },
+                  { path: "/admin", lazy: page(() => import("./pages/Admin"), "Admin") },
+                  { path: "/crm", lazy: page(() => import("./pages/CRM"), "default") },
+                  { path: "/help", lazy: page(() => import("./pages/ComingSoon"), "ComingSoon") },
+                  { path: "/settings", lazy: page(() => import("./pages/Settings"), "default") },
                 ],
               },
             ],

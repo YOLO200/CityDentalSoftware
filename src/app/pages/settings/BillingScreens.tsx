@@ -1,10 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
-import { useAuth } from "../../context/AuthContext";
 import {
-  SPageHeader, SFormCard, SInput, SSelect, STextarea, SUploadBox, STable, SModal,
-  STabs, SBadge, SToggle, SActionRow, NewButton, SaveButton, ResetBtn,
+  SPageHeader, SFormCard, SInput, SSelect, STextarea, SUploadBox, STable, SModal, SBadge, SToggle, SActionRow, NewButton, SaveButton, ResetBtn,
 } from "./primitives";
 
 // ─── Taxes ────────────────────────────────────────────────────────────────────

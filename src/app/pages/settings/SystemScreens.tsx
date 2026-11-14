@@ -1,10 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
-import { Database, Shield, Key, Plug, Clock, RefreshCw } from "lucide-react";
-// Demo-only tables are served from memory; everything else hits Supabase.
+import { useState, useCallback } from "react";
+import { Database, Clock, RefreshCw } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 import {
-  SPageHeader, SFormCard, SInput, SSelect, STable, SToggle,
-  SBadge, SActionRow, DangerButton, SaveButton, NewButton, fmtDate,
+  SPageHeader, SFormCard, SInput, SSelect, STable, SToggle, SBadge, SActionRow, DangerButton, fmtDate,
 } from "./primitives";
 
 // ─── Backup & Restore ─────────────────────────────────────────────────────────
@@ -156,44 +154,6 @@ export function Integrations() {
             </div>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── API Keys ─────────────────────────────────────────────────────────────────
-
-export function ApiKeys() {
-  const [keys, setKeys] = useState([
-    { name: "Production API Key", key: "sk_live_•••••••••••••••••••••••••••xyz", created: "01 Jan 2026", status: "Active" },
-    { name: "Test API Key",       key: "sk_test_•••••••••••••••••••••••••••abc", created: "01 Jan 2026", status: "Active" },
-  ]);
-  const [modal, setModal] = useState(false);
-  const [fName, setFName] = useState("");
-
-  return (
-    <div>
-      <SPageHeader title="API Keys" subtitle="Manage API keys for external integrations"
-        rightSlot={<NewButton onClick={() => setModal(true)} label="+ Generate Key" />} />
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-        <p className="text-xs text-amber-700 font-medium">Keep your API keys secret. Never share them publicly or commit them to version control.</p>
-      </div>
-      <STable
-        columns={["Name","Key","Created","Status","Actions"]}
-        rows={keys.map((k, i) => [
-          <span className="font-medium">{k.name}</span>,
-          <span className="font-mono text-xs text-gray-500">{k.key}</span>,
-          k.created,
-          <SBadge status={k.status} />,
-          <div className="flex gap-1">
-            <button className="text-[10px] border border-gray-200 rounded px-2 py-0.5 hover:bg-gray-50">Reveal</button>
-            <button onClick={() => setKeys(p => p.filter((_,j) => j!==i))} className="text-[10px] border border-red-200 text-red-500 rounded px-2 py-0.5 hover:bg-red-50">Revoke</button>
-          </div>,
-        ])}
-      />
-      <div className="p-3 bg-white border border-dashed border-gray-200 rounded-xl text-center mt-2">
-        <Plug className="h-6 w-6 text-gray-300 mx-auto mb-2" />
-        <p className="text-xs text-gray-400">API documentation available at <span className="text-[#1e2d5a] font-medium">api.citydental.in/docs</span></p>
       </div>
     </div>
   );

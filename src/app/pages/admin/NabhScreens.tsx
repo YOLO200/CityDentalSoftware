@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { MoreVertical } from "lucide-react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import {
   ADropdown, ADate, AInput, ATextarea, AdminTable, FilterBar, PageHeader,
@@ -115,7 +114,7 @@ function NabhScreen({ cfg }: { cfg: NabhConfig }) {
         </FilterBar>
       </div>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={cfg.columns.length} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable columns={cfg.columns} rows={rows.map(r => cfg.mapRow(r, setBranchMap))} />
         )}
       </div>
@@ -276,7 +275,7 @@ export function EquipmentMaster() {
             <button onClick={load} className="text-xs text-[#1e2d5a] hover:underline">Load equipment list →</button>
           </div>
         )}
-        {loading ? <LoadingRows cols={8} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Name","Code","Category","Center","Purchase Date","Warranty","Vendor","Status",""]}
             rows={rows.map(r => [
@@ -313,7 +312,6 @@ export function EquipmentMaintenance() {
   const [fCost,   setFCost]   = useState("");
   const [fNotes,  setFNotes]  = useState("");
   const [fStatus, setFStatus] = useState("Completed");
-  const equipMap = Object.fromEntries(equipment.map(e => [e.id, e.name]));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -364,7 +362,7 @@ export function EquipmentMaintenance() {
         {rows.length === 0 && !loading && (
           <div className="mb-3"><button onClick={load} className="text-xs text-[#1e2d5a] hover:underline">Load maintenance records →</button></div>
         )}
-        {loading ? <LoadingRows cols={7} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Equipment","Date","Next Due","Technician","Cost","Status",""]}
             rows={rows.map(r => [
@@ -447,7 +445,7 @@ export function EquipmentBreakdown() {
         {rows.length === 0 && !loading && (
           <div className="mb-3"><button onClick={load} className="text-xs text-[#1e2d5a] hover:underline">Load breakdown records →</button></div>
         )}
-        {loading ? <LoadingRows cols={6} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Equipment","Date","Issue","Technician","Status",""]}
             rows={rows.map(r => [

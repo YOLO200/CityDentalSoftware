@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
-import { X, ChevronDown, Search, UserPlus, Plus, ChevronUp, Check } from "lucide-react";
+import { X, ChevronDown, Search, UserPlus, ChevronUp, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { Appointment, Task, DoctorUnavailability, CalendarSettings, Patient, AppointmentStatus, TaskStatus } from "./types";
 import {
-  CENTERS, OPERATORS, TREATMENT_CATS, TREATMENT_MAP,
-  SERIES_TYPES, PROJECTS, SUPPORT_STAFF, DURATIONS, ALL_STATUSES, UNAVAILABILITY_REASONS,
+  CENTERS, TREATMENT_CATS, TREATMENT_MAP, SERIES_TYPES, PROJECTS, SUPPORT_STAFF, DURATIONS, ALL_STATUSES, UNAVAILABILITY_REASONS,
 } from "./mockData";
 import { supabase } from "../../../lib/supabase";
 
@@ -178,6 +177,7 @@ function QuickPatientModal({ onClose, onCreate }: {
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
+    if (saving) return;
     if (!name.trim())  { setErr("Name is required."); return; }
     if (!phone.trim()) { setErr("Mobile number is required."); return; }
 
@@ -234,7 +234,9 @@ function QuickPatientModal({ onClose, onCreate }: {
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
-          <button onClick={save} className="px-4 py-2 bg-[#1e2d5a] rounded text-sm text-white hover:bg-[#1a2650]">Save Patient</button>
+          <button onClick={save} disabled={saving} className="px-4 py-2 bg-[#1e2d5a] rounded text-sm text-white hover:bg-[#1a2650] disabled:opacity-50">
+            {saving ? "Saving…" : "Save Patient"}
+          </button>
         </div>
       </div>
     </div>
@@ -726,7 +728,7 @@ function GroupAppointmentForm({ registerSave, onClose, onSaveAppointments, defau
 }) {
   const [center,    setCenter]    = useState(CENTERS[0].name);
   const [operatory, setOperatory] = useState("");
-  const { doctors, patients: allPatientRows } = useRefs();
+  const { doctors } = useRefs();
   const [doctor,    setDoctor]    = useState(defaultDoctor ?? doctors[0]?.name ?? "");
   const [patients,  setPatients]  = useState<Patient[]>([]);
   const [cat,       setCat]       = useState("Not Specified");
@@ -750,7 +752,7 @@ function GroupAppointmentForm({ registerSave, onClose, onSaveAppointments, defau
     if (!doc) { toast.error("Select a doctor"); return; }
     const groupId = crypto.randomUUID();
     const groupTitle = title || `Group Appointment — ${patients.length} Patients`;
-    const apts: Appointment[] = patients.map((p, i) => ({
+    const apts: Appointment[] = patients.map((p) => ({
       id: crypto.randomUUID(),
       appointmentType: "Group" as const,
       patientName: p.name,

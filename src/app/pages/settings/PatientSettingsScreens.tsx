@@ -1,16 +1,12 @@
 import { useState, useCallback, useEffect } from "react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
-import { useAuth } from "../../context/AuthContext";
 import {
-  SPageHeader, SFormCard, SInput, SSelect, STextarea, STable, SModal,
-  SBadge, SActionRow, NewButton, SaveButton, ResetBtn, fmtDate,
+  SPageHeader, SInput, SSelect, STextarea, STable, SModal, SBadge, NewButton, SaveButton, ResetBtn,
 } from "./primitives";
 
 // ─── Patient Groups ───────────────────────────────────────────────────────────
 
 export function PatientGroups() {
-  const { user }  = useAuth();
   const [rows,    setRows]    = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal,   setModal]   = useState(false);
@@ -203,7 +199,7 @@ export function ConsentForms() {
       <SPageHeader title="Consent Forms" rightSlot={<NewButton onClick={() => setModal(true)} label="+ Add Form" />} />
       <STable
         columns={["Form Name","Category","Status","Actions"]}
-        rows={rows.map((r, i) => [
+        rows={rows.map((r) => [
           <span className="font-medium">{r.name}</span>,
           r.category, <SBadge status={r.status} />,
           <div className="flex gap-1">

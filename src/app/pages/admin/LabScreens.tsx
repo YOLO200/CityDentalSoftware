@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import {
   ADropdown, ADate, AInput, AdminTable, FilterBar, PageHeader,
@@ -19,7 +18,6 @@ export function LabBill() {
   const [showForm,setShowForm]= useState(false);
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   const [fCenter,    setFCenter]    = useState("");
   const [fLab,       setFLab]       = useState(LABS[0]);
@@ -63,7 +61,7 @@ export function LabBill() {
       amount: fAmount ? Number(fAmount) : null,
     });
     if (err) { setError(err.message); setSaving(false); return; }
-    setSaving(false); setSuccess(true); setShowForm(false);
+    setSaving(false); setShowForm(false);
     setFBillNo(""); setFAmount(""); setFCenter(""); setFLab(LABS[0]);
     setFEntryDate(today()); setFBillDate(today());
     load();
@@ -104,7 +102,7 @@ export function LabBill() {
         </FilterBar>
       </div>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={6} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Entry Date","Bill Date","Lab","Bill No.","Center","Amount",""]}
             rows={rows.map(r => [
@@ -148,7 +146,6 @@ export function GiveReceiveLabWork() {
   const [rItems,   setRItems]   = useState<any[]>([]);
 
   const branchMap = Object.fromEntries(branches.map(b => [b.name, b.id]));
-  const branchNames = ["All Centers", ...branches.map(b => b.name)];
   const labOptions  = LABS.filter(l => l !== "Select Lab");
 
   const load = useCallback(async () => {
@@ -327,7 +324,7 @@ export function GiveReceiveLabWork() {
           <ADate label="To"   value={fTo}   onChange={setFTo} />
         </FilterBar>
         <div className="mt-3">
-          {loading ? <LoadingRows cols={5} /> : (
+          {loading ? <LoadingRows /> : (
             <AdminTable
               columns={["Date","Lab","Patient","Work","Status"]}
               rows={rows.map(r => [

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { MoreVertical, Pencil } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 import {
   ADropdown, ADate, AInput, AdminTable, FilterBar, PageHeader,
@@ -109,7 +109,7 @@ export function DoctorUnavailability() {
         </FilterBar>
       </div>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={7} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Doctor Name", "Center", "From", "To", "Reason", "Status", ""]}
             rows={rows.map(r => [
@@ -183,7 +183,7 @@ export function AccessAudit() {
         <ADropdown label="Module" options={MODULES}     value={fModule} onChange={setFModule} className="w-36" />
       </FilterBar>
       <div className="mt-4">
-        {loading ? <LoadingRows cols={8} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Date & Time", "User", "Module", "Action", "IP Address", "Device", "Status"]}
             rows={rows.map(r => [

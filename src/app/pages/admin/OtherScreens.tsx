@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import { AlertCircle, RefreshCw, MoreVertical } from "lucide-react";
-// Demo-only tables are served from memory; everything else hits Supabase.
 import { supabase } from "../../../lib/supabase";
 import {
   ADropdown, ADate, AInput, ATextarea, AdminTable, PageHeader, FormCard,
@@ -244,7 +243,7 @@ export function RecurringTask() {
         {rows.length === 0 && !loading && !showForm && (
           <div className="mb-3"><button onClick={load} className="text-xs text-[#1e2d5a] hover:underline">Load tasks →</button></div>
         )}
-        {loading ? <LoadingRows cols={6} /> : (
+        {loading ? <LoadingRows /> : (
           <AdminTable
             columns={["Task Name","Frequency","Assignee","Center","Next Due","Status",""]}
             rows={rows.map(r => [
