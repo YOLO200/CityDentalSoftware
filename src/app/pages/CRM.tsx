@@ -117,7 +117,7 @@ export default function CRM() {
                       onClick={() => open(item.id)}
                       aria-current={active === item.id ? "page" : undefined}
                       className={`block w-full px-6 py-2 text-left text-sm transition-colors ${
-                        active === item.id ? "text-orange-500" : "text-gray-700 hover:text-[#1e2d5a]"
+                        active === item.id ? "text-teal-700 font-medium" : "text-gray-700 hover:text-[#1e2d5a]"
                       }`}
                     >
                       {item.label}

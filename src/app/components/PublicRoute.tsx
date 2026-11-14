@@ -6,8 +6,10 @@ export function PublicRoute() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      // Same backdrop as the login page it precedes, so there's no flash of a
+      // different screen while the session is checked.
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#eef2fb] via-[#f6f8fc] to-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
       </div>
     );
   }

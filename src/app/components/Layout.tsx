@@ -2,6 +2,7 @@ import { Outlet } from "react-router";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { BranchProvider } from "../context/BranchContext";
+import { DemoBanner, DemoGate } from "./DemoWorkspace";
 
 export function Layout() {
   return (
@@ -10,8 +11,11 @@ export function Layout() {
         <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
+          <DemoBanner />
           <main className="flex-1 overflow-y-auto">
-            <Outlet />
+            <DemoGate>
+              <Outlet />
+            </DemoGate>
           </main>
         </div>
       </div>

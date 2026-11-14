@@ -38,7 +38,7 @@ export function ClinicProfile() {
   const [fDateFmt,    setFDateFmt]    = useState(DATE_FORMATS[0]);
   const [fLang,       setFLang]       = useState("English");
   const [fPrimary,    setFPrimary]    = useState("#1e2d5a");
-  const [fSecondary,  setFSecondary]  = useState("#f97316");
+  const [fSecondary,  setFSecondary]  = useState("#0f766e");
 
   useEffect(() => {
     supabase.from("clinic_settings").select("key, value").then(({ data }) => {

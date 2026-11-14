@@ -617,7 +617,7 @@ function DayColumn({ ymd, appointments, tasks, unavailabilities, doctorFilter, i
   );
 
   return (
-    <div className={`relative border-l border-border ${isToday ? "bg-orange-50/30" : ""}`}>
+    <div className={`relative border-l border-border ${isToday ? "bg-teal-50/40" : ""}`}>
       {timeSlots.map(t => (
         <div key={t} className="h-12 border-b border-border cursor-pointer hover:bg-primary/5 transition-colors" onClick={onCellClick} />
       ))}
@@ -651,7 +651,7 @@ function WeekView({ weekDays, appointments, tasks, unavailabilities, onCellClick
           {weekDays.map(day => (
             <div key={toYMD(day)} className="p-2 text-center border-l border-border">
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{day.toLocaleDateString("en-GB", { weekday: "short" })}</div>
-              <div className={`mt-0.5 text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full mx-auto ${isSameDay(day, today) ? "bg-orange-500 text-white" : ""}`}>
+              <div className={`mt-0.5 text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full mx-auto ${isSameDay(day, today) ? "bg-teal-600 text-white" : ""}`}>
                 {day.getDate()}
               </div>
               <div className="text-[9px] text-muted-foreground mt-0.5">
@@ -694,9 +694,9 @@ function DayView({ date, appointments, tasks, unavailabilities, onAptClick, onTa
       <div style={{ minWidth: 320 }}>
         <div className="grid border-b border-border" style={{ gridTemplateColumns: "56px 1fr" }}>
           <div className="bg-secondary" />
-          <div className={`p-3 text-center border-l border-border ${isToday ? "bg-orange-50" : "bg-secondary"}`}>
+          <div className={`p-3 text-center border-l border-border ${isToday ? "bg-teal-50" : "bg-secondary"}`}>
             <div className="text-xs text-muted-foreground">{date.toLocaleDateString("en-GB", { weekday: "long" })}</div>
-            <div className={`text-xl font-bold mt-0.5 ${isToday ? "text-orange-500" : ""}`}>
+            <div className={`text-xl font-bold mt-0.5 ${isToday ? "text-teal-700" : ""}`}>
               {date.getDate()} {date.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}
             </div>
             <div className="text-xs text-muted-foreground">
@@ -750,7 +750,7 @@ function DoctorView({ date, appointments, tasks, unavailabilities, visibleDoctor
         <div className="grid border-b border-border bg-secondary" style={{ gridTemplateColumns: `56px repeat(${cols.length},1fr)` }}>
           <div className="p-3 text-center">
             <div className="text-[10px] text-muted-foreground">{date.toLocaleDateString("en-GB", { weekday: "short" })}</div>
-            <div className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full mx-auto mt-0.5 ${isSameDay(date, today) ? "bg-orange-500 text-white" : ""}`}>
+            <div className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full mx-auto mt-0.5 ${isSameDay(date, today) ? "bg-teal-600 text-white" : ""}`}>
               {date.getDate()}
             </div>
           </div>
@@ -816,9 +816,9 @@ function MonthView({ baseDate, appointments, tasks, onDayClick }: {
           const isToday = isSameDay(day, today);
           return (
             <div key={ymd}
-              className={`h-24 border-b border-r border-border p-1.5 cursor-pointer hover:bg-primary/5 transition-colors ${isToday ? "bg-orange-50" : ""}`}
+              className={`h-24 border-b border-r border-border p-1.5 cursor-pointer hover:bg-primary/5 transition-colors ${isToday ? "bg-teal-50" : ""}`}
               onClick={() => onDayClick(day)}>
-              <div className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? "bg-orange-500 text-white" : "text-foreground"}`}>
+              <div className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? "bg-teal-600 text-white" : "text-foreground"}`}>
                 {day.getDate()}
               </div>
               <div className="space-y-0.5 overflow-hidden">

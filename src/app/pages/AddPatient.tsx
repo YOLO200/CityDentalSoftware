@@ -1211,7 +1211,7 @@ export function AddPatient() {
 
       {/* Bottom bar */}
       <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between">
-        <button className="text-orange-500 text-sm hover:underline">Need Help?</button>
+        <button className="text-teal-700 text-sm hover:underline">Need Help?</button>
         <div className="flex gap-3">
           <button
             onClick={() => navigate("/patients")}

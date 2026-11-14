@@ -88,13 +88,14 @@ export function AcceptInvite() {
     }
 
     // They have now actually signed in, so lift them out of 'Invited' — that
-    // status holds zero permissions by design.
+    // status holds zero permissions by design. ONLY 'Invited': this screen
+    // also handles password-reset links, and an unconditional update would
+    // let a Disabled user re-enable themselves by requesting a reset.
     const { data: userData } = await supabase.auth.getUser();
     if (userData?.user) {
-      await supabase
-        .from("profiles")
-        .update({ status: "Active", last_login: new Date().toISOString() })
-        .eq("id", userData.user.id);
+      const id = userData.user.id;
+      await supabase.from("profiles").update({ last_login: new Date().toISOString() }).eq("id", id);
+      await supabase.from("profiles").update({ status: "Active" }).eq("id", id).eq("status", "Invited");
     }
 
     // OnboardedRoute will route onward to /setup-profile for the rest.

@@ -2725,7 +2725,7 @@ export function Reports() {
                       <button key={item.id} onClick={() => setActiveReport(item.id)}
                         className={`w-full text-left px-3 py-1.5 rounded text-[11px] transition-colors leading-tight flex items-center gap-1 ${
                           activeReport === item.id
-                            ? "text-orange-500 font-semibold bg-orange-50"
+                            ? "text-teal-700 font-semibold bg-teal-50"
                             : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
                         }`}>
                         <span className="flex-1">{item.label}</span>

@@ -5,6 +5,8 @@ import { useAuth } from "./AuthContext";
 export interface Branch {
   id: string;
   name: string;
+  /** The demo workspace (migration 025). Absent before 025 runs. */
+  is_demo?: boolean;
 }
 
 interface BranchContextValue {

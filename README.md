@@ -97,7 +97,7 @@ The live Supabase database is the source of truth for the schema. Before writing
 
 **The `supabase/` folder is gitignored.** It exists only on the machine of whoever has been writing migrations. It holds:
 
-- `migrations/020_…` to `024_…`: the most recent migrations (branch selector, Practice Summary, notes/documents, visits, CRM and Patient Tracker), all applied to the live database. Earlier migrations (001–019) are not on disk; they were applied and their files removed.
+- `migrations/020_…` to `025_…`: the most recent migrations (branch selector, Practice Summary, notes/documents, visits, CRM and Patient Tracker, demo workspace). Earlier migrations (001–019) are not on disk; they were applied and their files removed.
 - `VERIFY_MIGRATIONS.sql`: run it in the SQL editor to check that each migration's tables, policies and functions are present.
 - `SCHEMA_GAPS.md`: tables the code expects that do not exist.
 - `functions/invite-user/`: the Edge Function that creates accounts.
@@ -114,6 +114,18 @@ Add new migrations as numbered files (`025_….sql`), make them idempotent, and 
 ### Accounts
 
 Sign-up is invite-only. An administrator invites staff from Settings → Users, which calls the `invite-user` Edge Function. The invitee sets a password at `/accept-invite`, then completes `/setup-profile`. Public sign-up must also stay disabled in Supabase → Authentication → Sign In / Providers; removing it from the UI alone does not close the API endpoint.
+
+## Demo login
+
+For demos, a separate **Dentosys Demo Clinic** branch holds sample data that always looks current (migration `025_demo_workspace.sql`):
+
+1. Supabase → Authentication → Users → **Add user** (e.g. `demo@yourclinic.com`, with a password, auto-confirmed).
+2. Run `025_demo_workspace.sql`, then `select public.setup_demo_user('demo@yourclinic.com');`.
+3. Log in as that user.
+
+The first time the demo workspace is opened each day, `refresh_demo_data()` rebuilds about five months of history plus last week, this week and next week around today's date (India time). Today's appointments move from Confirmed to Arrived, In Treatment and Completed as the day goes on. Anything added in the demo is cleared at the next daily rebuild, apart from patients.
+
+The demo account is assigned only to the demo branch, so branch-level RLS keeps it away from real patients, and real staff never see demo data. New staff are never offered the demo branch during onboarding. To force a rebuild, run `update public.demo_state set refreshed_on = null;`.
 
 ## Testing
 
@@ -147,7 +159,6 @@ Deployed on Vercel (`vercel.json`): `vite build`, output `dist/`, and all paths 
 
 - **About 27 tables the code references do not exist** (treatments catalogue, labs, taxes, payment modes, vendors, equipment, inventory categories/transfers, clinic settings, accounting, SMS credits, …). The Admin and Settings screens built on them render empty. Create tables one feature at a time, with RLS policies.
 - **Permissions are not enforced in the UI.** `PermissionGate` exists but is not used on pages, so any signed-in user can open every screen. RLS still protects the data that has policies.
-- **Receipts on the patient page** query a `mode` column that the live `receipts` table does not have, so receipts never show.
 - **Reports** ignore the selected branch.
 - **Messaging** (SMS, WhatsApp, email) is not connected to any provider. The Communications reports only show recorded campaign rows.
 - **Many older queries** treat errors as empty results (`data ?? []`), so a failing query looks like "no data". Sentry now reports these for code that goes through the Supabase client.

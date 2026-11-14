@@ -49,7 +49,8 @@ interface PrescriptionRow {
 interface ReceiptRow {
   id: string;
   receipt_number: string | null;
-  mode: string | null;
+  /** payment_mode enum: Cash | Card | Wallet | Others */
+  paid_by: string | null;
   amount: number | null;
   notes: string | null;
   date: string | null;
@@ -79,7 +80,7 @@ function SectionHeader({ color, title, extra }: { color: string; title: string; 
   return (
     <div className="flex items-center gap-2 mb-3 mt-5">
       <span className={`h-3 w-3 rounded-full ${color}`} />
-      <span className="text-sm font-semibold tracking-wide" style={{ color: color === "bg-orange-400" ? "#f97316" : color === "bg-green-500" ? "#22c55e" : "#3b82f6" }}>
+      <span className="text-sm font-semibold tracking-wide" style={{ color: color === "bg-green-500" ? "#22c55e" : "#3b82f6" }}>
         {title}
       </span>
       {extra}
@@ -131,7 +132,7 @@ export function PatientDetail() {
           .order("date", { ascending: false }),
         supabase
           .from("receipts")
-          .select("id, receipt_number, mode, amount, notes, date")
+          .select("id, receipt_number, paid_by, amount, notes, date")
           .eq("patient_id", id)
           .order("date", { ascending: false }),
         supabase
@@ -682,7 +683,7 @@ export function PatientDetail() {
                 <tr key={row.id} className="border-t border-gray-100">
                   <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDate(row.date)}</td>
                   <td className="px-3 py-2">{row.receipt_number ?? "—"}</td>
-                  <td className="px-3 py-2">{row.mode ?? "—"}</td>
+                  <td className="px-3 py-2">{row.paid_by ?? "—"}</td>
                   <td className="px-3 py-2">
                     {(row.amount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </td>

@@ -501,8 +501,8 @@ function RoleDetailPanel({ role, matrix, fieldPerms, activeTab, onTabChange, onM
       <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${role.is_system ? "bg-[#1e2d5a]" : "bg-orange-100"}`}>
-              {role.is_system ? <Lock className="h-4 w-4 text-white" /> : <Shield className="h-4 w-4 text-orange-600" />}
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${role.is_system ? "bg-[#1e2d5a]" : "bg-teal-100"}`}>
+              {role.is_system ? <Lock className="h-4 w-4 text-white" /> : <Shield className="h-4 w-4 text-teal-700" />}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -623,7 +623,7 @@ function RoleDetailPanel({ role, matrix, fieldPerms, activeTab, onTabChange, onM
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  {role.is_system ? <Lock className="h-3.5 w-3.5 text-gray-400" /> : <Shield className="h-3.5 w-3.5 text-orange-500" />}
+                  {role.is_system ? <Lock className="h-3.5 w-3.5 text-gray-400" /> : <Shield className="h-3.5 w-3.5 text-teal-600" />}
                   <span className="text-xs text-gray-600">{role.is_system ? "System Role" : "Custom Role"}</span>
                 </div>
                 <Pill label={role.active ? "Active" : "Inactive"} color={role.active ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"} />
@@ -1099,7 +1099,7 @@ export function RolesPermissions() {
                   <div className="flex items-center gap-1.5 min-w-0">
                     {role.is_system
                       ? <Lock className="h-3 w-3 text-[#1e2d5a] flex-shrink-0" />
-                      : <Shield className="h-3 w-3 text-orange-500 flex-shrink-0" />}
+                      : <Shield className="h-3 w-3 text-teal-600 flex-shrink-0" />}
                     <span className={`text-xs font-semibold truncate ${selectedId === role.id ? "text-[#1e2d5a]" : "text-gray-700"}`}>
                       {role.name}
                     </span>

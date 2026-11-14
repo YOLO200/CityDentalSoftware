@@ -237,7 +237,7 @@ export default function Settings() {
                       onClick={() => navigate(item.id, section.id)}
                       className={`w-full text-left px-4 py-1.5 text-[11px] transition-colors ${
                         active === item.id
-                          ? "bg-orange-50 text-orange-600 font-semibold border-r-2 border-orange-500"
+                          ? "bg-teal-50 text-teal-700 font-semibold border-r-2 border-teal-600"
                           : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                       }`}>
                       {item.label}
